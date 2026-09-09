@@ -44,8 +44,10 @@
     "node": ">=20.0"
   },
   "overrides": {
+    "fast-uri": "^3.1.7",
     "http-proxy-middleware": "^2.0.10",
     "js-yaml": "^3.15.0",
+    "qs": "^6.16.0",
     "serialize-javascript": "^7.0.5",
     "uuid": "^11.1.1"
   }
