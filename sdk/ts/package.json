@@ -1,6 +1,6 @@
 {
   "name": "@loopers/client",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.21.6](https://github.com/try-loopers/loopers-oss/compare/v2.21.5...v2.21.6) (2026-09-10)
+
+
+### Bug Fixes
+
+* **sdk-ts:** configure npm auth and publishConfig for scoped package publishing ([1d4f095](https://github.com/try-loopers/loopers-oss/commit/1d4f095ec49c1647c7602ccd552ededd13aee174))
+* **sdk-ts:** configure npm auth and publishConfig for scoped package publishing ([10db58b](https://github.com/try-loopers/loopers-oss/commit/10db58b72350d95e2df4a5a2ff41de57bad39b27))
+
 ## [2.21.5](https://github.com/try-loopers/loopers-oss/compare/v2.21.4...v2.21.5) (2026-09-10)
 
 
