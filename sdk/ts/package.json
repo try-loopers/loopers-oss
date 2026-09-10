@@ -1,6 +1,10 @@
 {
   "name": "@loopers/client",
   "version": "2.1.2",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "description": "A premium TypeScript client wrapper for the Loopers AI budget & rate-limit proxy.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
