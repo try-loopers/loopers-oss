@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.21.5](https://github.com/try-loopers/loopers-oss/compare/v2.21.4...v2.21.5) (2026-09-10)
+
+
+### Bug Fixes
+
+* **ci:** enable legacy-peer-deps in publish-ts-sdk workflow and sdk/ts ([81f74f0](https://github.com/try-loopers/loopers-oss/commit/81f74f07cb46b22282103f473261da5098559e8f))
+* **ci:** enable legacy-peer-deps in publish-ts-sdk workflow and sdk/ts ([908a062](https://github.com/try-loopers/loopers-oss/commit/908a06224e3a174102757912f034bcf6703cbb04))
+
 ## [2.21.4](https://github.com/try-loopers/loopers-oss/compare/v2.21.3...v2.21.4) (2026-09-10)
 
 
