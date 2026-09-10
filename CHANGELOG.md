@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.21.4](https://github.com/try-loopers/loopers-oss/compare/v2.21.3...v2.21.4) (2026-09-10)
+
+
+### Bug Fixes
+
+* **deps:** bump @swc/html, colord, joi, js-yaml, svgo, and vitest to patch Sept 8 vulnerabilities ([68d6fb9](https://github.com/try-loopers/loopers-oss/commit/68d6fb923cd157a958bf0aeb0eb497b45b2c9e00))
+* **deps:** bump @swc/html, colord, joi, js-yaml, svgo, and vitest to patch vulnerabilities ([6ae4656](https://github.com/try-loopers/loopers-oss/commit/6ae46564c4e18e82f6fcab3337efb5473e0f76ca))
+
 ## [2.21.3](https://github.com/try-loopers/loopers-oss/compare/v2.21.2...v2.21.3) (2026-09-09)
 
 
