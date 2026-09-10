@@ -26,7 +26,7 @@ jobs:
 
     - name: Install dependencies
       working-directory: ./sdk/ts
-      run: npm ci
+      run: npm ci --legacy-peer-deps
 
     - name: Build TypeScript
       working-directory: ./sdk/ts
