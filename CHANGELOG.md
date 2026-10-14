@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.21.7](https://github.com/try-loopers/loopers-oss/compare/v2.21.6...v2.21.7) (2026-10-14)
+
+
+### Bug Fixes
+
+* **ci:** bump golang.org/x/net to v0.60.0 and add wait step for Redis service ([da167e2](https://github.com/try-loopers/loopers-oss/commit/da167e24992189c922aea32a6d34d128f3c110bb))
+* **ci:** pin Go version to 1.26.9 with check-latest to avoid cached vulnerable 1.26.8 ([611de1c](https://github.com/try-loopers/loopers-oss/commit/611de1ce2f39c35c0ad043395e4eb996f3ea39f4))
+* **ci:** upgrade Go toolchain to 1.26.x across workflows and add legal docs to gitignore ([06dfdb9](https://github.com/try-loopers/loopers-oss/commit/06dfdb9c5b2475feb79bdf27ba76e528a7053d57))
+* **ci:** upgrade Go toolchain to 1.26.x across workflows and add legal docs to gitignore ([38a2c2b](https://github.com/try-loopers/loopers-oss/commit/38a2c2b57df80a70d10089a82fbdba343d0b8e73))
+
 ## [2.21.6](https://github.com/try-loopers/loopers-oss/compare/v2.21.5...v2.21.6) (2026-09-10)
 
 
