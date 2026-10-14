@@ -23,9 +23,9 @@ jobs:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 5s
+          --health-timeout 2s
+          --health-retries 10
     steps:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,6 +49,21 @@ jobs:
 
       - name: Build
         run: go build -v ./...
+
+      - name: Wait for Redis service
+        run: |
+          host="${REDIS_PORT_6379_TCP_ADDR:-127.0.0.1}"
+          port="${REDIS_PORT_6379_TCP_PORT:-6379}"
+          echo "Waiting for Redis at ${host}:${port}..."
+          for i in $(seq 1 30); do
+            if nc -z "$host" "$port"; then
+              echo "Redis is up at ${host}:${port}"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: Redis did not start at ${host}:${port} after 30s" >&2
+          exit 1
 
       - name: Run Tests and Scan for Key Leakage
         run: |
