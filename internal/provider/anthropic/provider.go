@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/try-loopers/loopers-oss/internal/provider"
+	"github.com/try-loopers/loopers-oss/pkg/api"
 )
 
 type AnthropicProvider struct{}
@@ -15,6 +16,10 @@ type AnthropicProvider struct{}
 func NewAnthropicProvider() *AnthropicProvider {
 	return &AnthropicProvider{}
 }
+
+// Ensure AnthropicProvider implements provider.Provider and provider.CacheAwareProvider.
+var _ provider.Provider = (*AnthropicProvider)(nil)
+var _ provider.CacheAwareProvider = (*AnthropicProvider)(nil)
 
 // Ensure AnthropicProvider implements provider.Provider.
 var _ provider.Provider = (*AnthropicProvider)(nil) // wait, typo in compilation warning: should check against (*AnthropicProvider)
@@ -88,6 +93,30 @@ func (a *AnthropicProvider) ParseNonStreamResponse(body []byte) (inputTokens int
 		return 0, 0, nil
 	}
 	return respObj.Usage.InputTokens, respObj.Usage.OutputTokens, nil
+}
+
+// ParseNonStreamUsage extracts detailed token usage including cache reads and writes.
+func (a *AnthropicProvider) ParseNonStreamUsage(body []byte) (api.TokenUsage, error) {
+	var respObj struct {
+		Usage *api.AnthropicUsage `json:"usage"`
+	}
+	if err := json.Unmarshal(body, &respObj); err != nil {
+		return api.TokenUsage{}, err
+	}
+	if respObj.Usage == nil {
+		return api.TokenUsage{}, nil
+	}
+	return api.TokenUsage{
+		InputTokens:         respObj.Usage.InputTokens,
+		OutputTokens:        respObj.Usage.OutputTokens,
+		CacheReadTokens:     respObj.Usage.CacheReadInputTokens,
+		CacheCreationTokens: respObj.Usage.CacheCreationInputTokens,
+	}, nil
+}
+
+// ParseStreamChunkUsage processes an Anthropic SSE stream chunk and extracts detailed token usage.
+func (a *AnthropicProvider) ParseStreamChunkUsage(chunk []byte) (api.TokenUsage, bool, error) {
+	return parseAnthropicStreamChunkUsage(chunk)
 }
 
 func (a *AnthropicProvider) FormatBudgetExceededSSE() []byte {

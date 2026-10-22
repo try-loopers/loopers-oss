@@ -56,6 +56,8 @@ const (
 	isStreamCtx        serverContextKey = "IsStream"
 	inputPriceCtx      serverContextKey = "InputPrice"
 	outputPriceCtx     serverContextKey = "OutputPrice"
+	cacheReadPriceCtx  serverContextKey = "CacheReadPrice"
+	cacheWritePriceCtx serverContextKey = "CacheWritePrice"
 	inputTokensCtx     serverContextKey = "InputTokens"
 	sessionIDCtx       serverContextKey = "SessionID"
 	sessionBudgetCtx   serverContextKey = "SessionBudget"

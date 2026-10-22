@@ -39,10 +39,12 @@ type mcpCtxKey string
 
 const (
 	mcpSessionIDCtxKey  mcpCtxKey = "mcpSessionID"
+	mcpProxyKeyCtxKey   mcpCtxKey = "mcpProxyKey"
 	mcpServerNameCtxKey mcpCtxKey = "mcpServerName"
 	mcpToolNameCtxKey   mcpCtxKey = "mcpToolName"
 	mcpMethodCtxKey     mcpCtxKey = "mcpMethod"
 	mcpServerCtxKey     mcpCtxKey = "mcpServer"
+	mcpMemoKeyCtxKey    mcpCtxKey = "mcpMemoKey"
 )
 
 // sensitiveTaintTools is the set of tool-name substrings that auto-set the
@@ -166,8 +168,8 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 	reservedCost, hasCost := ctx.Value(proxyPkg.RequestCostCtx).(float64)
 	keyHash, hasKey := ctx.Value(proxyPkg.ProxyKeyHashCtx).(string)
 
-	// Tool Response Inspection (Capability 2: Indirect Prompt Injection Wall)
-	if mcpMethod == "tools/call" && resp.StatusCode == http.StatusOK && h.cfg.Inspector.Enabled && hasKey {
+	// Tool Response Inspection & Read Memoization
+	if mcpMethod == "tools/call" && resp.StatusCode == http.StatusOK && hasKey {
 		limit := viper.GetInt64("server.max_response_bytes")
 		if limit == 0 {
 			limit = 10 * 1024 * 1024 // 10MB default
@@ -175,46 +177,143 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 		body, err := io.ReadAll(io.LimitReader(resp.Body, limit))
 		resp.Body.Close()
 		if err == nil {
-			result := inspector.InspectToolResponse(body, h.cfg.Inspector.CustomInjectionPatterns)
-			switch result.Action {
-			case "quarantine":
-				dur, _ := time.ParseDuration(h.cfg.Inspector.QuarantineDuration)
-				if dur <= 0 {
-					dur = 1 * time.Hour
+			allowed := true
+			if h.cfg.Inspector.Enabled {
+				result := inspector.InspectToolResponse(body, h.cfg.Inspector.CustomInjectionPatterns)
+				switch result.Action {
+				case "quarantine":
+					allowed = false
+					dur, _ := time.ParseDuration(h.cfg.Inspector.QuarantineDuration)
+					if dur <= 0 {
+						dur = 1 * time.Hour
+					}
+					_ = h.budgetClient.GetUnderlyingClient().Set(req.Context(), "loopers:quarantine:"+keyHash, "1", dur).Err()
+					if h.riskProfileCfg.Enabled {
+						go func() {
+							_, _ = riskprofile.UpdateRiskScore(context.Background(), h.budgetClient.GetUnderlyingClient(), keyHash, 30, true, "secret_exfiltration")
+						}()
+					}
+					event.EmitQuarantineEvent(req.Context(), event.QuarantineEvent{
+						KeyHash:       keyHash,
+						Reason:        result.Reason,
+						QuarantineFor: h.cfg.Inspector.QuarantineDuration,
+					})
+					toolName, _ := ctx.Value(mcpToolNameCtxKey).(string)
+					denial, _ := json.Marshal(api.NewMCPPolicyDeniedResponse(jsonRPCIDFromBody(body), toolName, result.Reason))
+					resp.Body = io.NopCloser(bytes.NewReader(denial))
+					resp.ContentLength = int64(len(denial))
+					resp.Header.Set("Content-Length", strconv.Itoa(len(denial)))
+					resp.Header.Set("X-Loopers-Policy-Block", "true")
+					resp.Header.Set("X-Loopers-Block-Reason", result.Reason)
+				case "transform":
+					allowed = false
+					event.EmitBlockEvent(req.Context(), event.BlockEvent{
+						EventType: "response_injection_redacted",
+						KeyHash:   keyHash,
+						Provider:  serverName,
+						Reason:    result.Reason,
+						Detail:    "Malicious content redacted from tool response",
+					})
+					resp.Body = io.NopCloser(bytes.NewReader(result.NewBody))
+					resp.ContentLength = int64(len(result.NewBody))
+					resp.Header.Set("Content-Length", strconv.Itoa(len(result.NewBody)))
+					resp.Header.Set("X-Loopers-Response-Redacted", "true")
+				default:
+					// allow - restore body
+					resp.Body = io.NopCloser(bytes.NewReader(body))
 				}
-				_ = h.budgetClient.GetUnderlyingClient().Set(req.Context(), "loopers:quarantine:"+keyHash, "1", dur).Err()
-				if h.riskProfileCfg.Enabled {
-					go func() {
-						_, _ = riskprofile.UpdateRiskScore(context.Background(), h.budgetClient.GetUnderlyingClient(), keyHash, 30, true, "secret_exfiltration")
-					}()
-				}
-				event.EmitQuarantineEvent(req.Context(), event.QuarantineEvent{
-					KeyHash:       keyHash,
-					Reason:        result.Reason,
-					QuarantineFor: h.cfg.Inspector.QuarantineDuration,
-				})
-				toolName, _ := ctx.Value(mcpToolNameCtxKey).(string)
-				denial, _ := json.Marshal(api.NewMCPPolicyDeniedResponse(jsonRPCIDFromBody(body), toolName, result.Reason))
-				resp.Body = io.NopCloser(bytes.NewReader(denial))
-				resp.ContentLength = int64(len(denial))
-				resp.Header.Set("Content-Length", strconv.Itoa(len(denial)))
-				resp.Header.Set("X-Loopers-Policy-Block", "true")
-				resp.Header.Set("X-Loopers-Block-Reason", result.Reason)
-			case "transform":
-				event.EmitBlockEvent(req.Context(), event.BlockEvent{
-					EventType: "response_injection_redacted",
-					KeyHash:   keyHash,
-					Provider:  serverName,
-					Reason:    result.Reason,
-					Detail:    "Malicious content redacted from tool response",
-				})
-				resp.Body = io.NopCloser(bytes.NewReader(result.NewBody))
-				resp.ContentLength = int64(len(result.NewBody))
-				resp.Header.Set("Content-Length", strconv.Itoa(len(result.NewBody)))
-				resp.Header.Set("X-Loopers-Response-Redacted", "true")
-			default:
-				// allow - restore body
+			} else {
 				resp.Body = io.NopCloser(bytes.NewReader(body))
+			}
+
+			if allowed {
+				sessionID, _ := ctx.Value(mcpSessionIDCtxKey).(string)
+				proxyKey, _ := ctx.Value(mcpProxyKeyCtxKey).(string)
+				if proxyKey == "" {
+					proxyKey, _ = ctx.Value(proxyPkg.RawProxyKeyCtx).(string)
+				}
+				toolName, _ := ctx.Value(mcpToolNameCtxKey).(string)
+
+				// Ghost Tokens Offloading: compress and encrypt large tool results
+				if h.cfg.GhostTokens.Enabled && h.budgetClient != nil && h.budgetClient.GetUnderlyingClient() != nil && sessionID != "" && proxyKey != "" {
+					thresholdBytes := int(h.cfg.GhostTokens.ThresholdBytes)
+					if thresholdBytes <= 0 {
+						thresholdBytes = 8192
+					}
+					ttl := h.cfg.GhostTokens.TTLSeconds
+					if ttl <= 0 {
+						ttl = 1800
+					}
+
+					if len(body) > thresholdBytes {
+						var rpcMap map[string]interface{}
+						if jsonErr := json.Unmarshal(body, &rpcMap); jsonErr == nil {
+							if resVal, hasRes := rpcMap["result"]; hasRes {
+								var rawPayload []byte
+								isContentText := false
+								var contentList []interface{}
+								var firstItem map[string]interface{}
+
+								if resMap, ok := resVal.(map[string]interface{}); ok {
+									if cList, ok := resMap["content"].([]interface{}); ok && len(cList) > 0 {
+										if itemMap, ok := cList[0].(map[string]interface{}); ok {
+											if text, ok := itemMap["text"].(string); ok && len(text) > thresholdBytes {
+												rawPayload = []byte(text)
+												isContentText = true
+												contentList = cList
+												firstItem = itemMap
+											}
+										}
+									}
+								}
+
+								if len(rawPayload) == 0 && len(body) > thresholdBytes {
+									rawPayload, _ = json.Marshal(resVal)
+								}
+
+								if len(rawPayload) > 0 {
+									blobID := proxyPkg.GenerateBlobID()
+									ghostKey := proxyPkg.DeriveGhostKey(proxyKey, sessionID)
+									enc, encErr := proxyPkg.EncryptGhostBlob(ghostKey, rawPayload)
+									if encErr == nil {
+										rdbKey := fmt.Sprintf("loopers:blob:{%s}:%s:%s", keyHash, sessionID, blobID)
+										if setErr := h.budgetClient.GetUnderlyingClient().Set(req.Context(), rdbKey, enc, time.Duration(ttl)*time.Second).Err(); setErr == nil {
+											stubBytes, stubErr := proxyPkg.CreateGhostStub(toolName, rawPayload, blobID)
+											if stubErr == nil {
+												if isContentText {
+													firstItem["text"] = string(stubBytes)
+													contentList[0] = firstItem
+													resMap := resVal.(map[string]interface{})
+													resMap["content"] = contentList
+													rpcMap["result"] = resMap
+												} else {
+													var stubObj interface{}
+													_ = json.Unmarshal(stubBytes, &stubObj)
+													rpcMap["result"] = stubObj
+												}
+												if newBodyBytes, mErr := json.Marshal(rpcMap); mErr == nil {
+													body = newBodyBytes
+													resp.Body = io.NopCloser(bytes.NewReader(body))
+													resp.ContentLength = int64(len(body))
+													resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+													resp.Header.Set("X-Loopers-Ghost-Token", blobID)
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if memoKey, ok := ctx.Value(mcpMemoKeyCtxKey).(string); ok && memoKey != "" && h.budgetClient != nil {
+					window := h.cfg.CircuitBreaker.WindowSeconds
+					if window <= 0 {
+						window = 60
+					}
+					_ = h.budgetClient.GetUnderlyingClient().Set(req.Context(), memoKey, body, time.Duration(window)*time.Second).Err()
+				}
 			}
 		} else {
 			resp.Body = io.NopCloser(bytes.NewReader([]byte{}))
@@ -439,6 +538,21 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 	// --- Stateful Session Context ---
 	// Resolve sessionID here (before policy evaluation) so we can populate the taint context.
 	sessionID := c.GetHeader("X-Loopers-Session-ID")
+	if sessionID == "" && len(keyHash) >= 32 {
+		sessionID = fmt.Sprintf("%s-%s-%s-%s-%s", keyHash[0:8], keyHash[8:12], keyHash[12:16], keyHash[16:20], keyHash[20:32])
+	}
+	var rawProxyKey string
+	if pk, exists := c.Get("ProxyKey"); exists {
+		rawProxyKey, _ = pk.(string)
+	}
+	if rawProxyKey == "" {
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			rawProxyKey = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			rawProxyKey = authHeader
+		}
+	}
 
 	// Build the OPA session context — populate taint flags and tool history when available.
 	sessionCtx := policy.SessionContext{
@@ -486,6 +600,8 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 		sessionCtx.Traces = make([]policy.SessionTrace, 0)
 	}
 
+	br := blastradius.Calculate(toolParams.Name, toolArgs)
+
 	if h.policyEngine != nil {
 		var agentRiskCtx policy.AgentRiskContext
 		if rp != nil {
@@ -499,8 +615,6 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 				QuarantineActive:     time.Now().Before(rp.QuarantineUntil),
 			}
 		}
-
-		br := blastradius.Calculate(toolParams.Name, toolArgs)
 
 		decision, err := h.policyEngine.Evaluate(c.Request.Context(), policy.EvalInput{
 			Agent: policy.AgentContext{
@@ -679,6 +793,7 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 	span.SetAttributes(attribute.String("gen_ai.system.mcp.tool", toolParams.Name))
 
 	// 1. Circuit Breaker Check
+	var cbCount int64
 	if sessionID != "" && h.cfg.CircuitBreaker.Enabled {
 		if !session.IsValidID(sessionID) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID format"})
@@ -706,7 +821,9 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 		cbRes, err := h.circuitBreaker.Check(c.Request.Context(), sessionID, toolParams.Name, toolParams.Arguments, maxTotalTools)
 		if err != nil {
 			logging.Logger.Warn().Err(err).Msg("MCP circuit breaker check failed")
-		} else if cbRes.TotalTripped {
+		} else if cbRes != nil {
+			cbCount = cbRes.Count
+			if cbRes.TotalTripped {
 			event.EmitBlockEvent(c.Request.Context(), event.BlockEvent{
 				EventType: "circuit_breaker_trip",
 				SessionID: sessionID,
@@ -737,6 +854,7 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 			return
 		}
 	}
+}
 
 	// 2. Blast Radius Check
 	if sessionID != "" && h.sessionManager != nil {
@@ -774,6 +892,50 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 					"type":  "mcp_blast_radius_exceeded",
 				})
 				return
+			}
+		}
+	}
+
+	// 2.5 Read-Only Tool Memoization
+	memoizeEnabled := h.cfg.MemoizeReadOnly || viper.GetBool("mcp.memoize_read_only")
+	var memoKey string
+	if memoizeEnabled && sessionID != "" && br.Score <= 15 && h.budgetClient != nil {
+		callHash := fmt.Sprintf("%s|%s", toolParams.Name, hashArgs(toolParams.Arguments))
+		memoKey = fmt.Sprintf("loopers:mcp:memo:{%s}:%s:%s", keyHash, sessionID, callHash)
+
+		cachedBytes, err := h.budgetClient.GetUnderlyingClient().Get(c.Request.Context(), memoKey).Bytes()
+		if err == nil && len(cachedBytes) > 0 {
+			var rpcResp map[string]interface{}
+			if jsonErr := json.Unmarshal(cachedBytes, &rpcResp); jsonErr == nil {
+				rpcResp["id"] = req.ID
+
+				// If repeated 3+ times in the window, append self-correcting hint
+				if cbCount >= 3 {
+					if resMap, ok := rpcResp["result"].(map[string]interface{}); ok {
+						if contentList, ok := resMap["content"].([]interface{}); ok && len(contentList) > 0 {
+							if firstItem, ok := contentList[0].(map[string]interface{}); ok {
+								if textVal, ok := firstItem["text"].(string); ok {
+									firstItem["text"] = textVal + "\n[Loopers Notice: Identical read-only tool call repeated in this session; returning cached output. Proceed with synthesis instead of re-calling.]"
+								}
+							}
+						}
+					}
+				}
+
+				if updatedResp, marshalErr := json.Marshal(rpcResp); marshalErr == nil {
+					c.Header("X-Loopers-MCP-Memoized", "true")
+					savedCost := h.pricingStore.GetToolCost(toolParams.Name)
+					if savedCost > 0 {
+						if !viper.GetBool("server.strip_budget_headers") {
+							c.Header("X-Loopers-Saved-USD", fmt.Sprintf("%.6f", savedCost))
+						}
+						if h.budgetClient != nil {
+							_ = h.budgetClient.RecordSavings(context.Background(), keyHash, savedCost)
+						}
+					}
+					c.Data(http.StatusOK, "application/json", updatedResp)
+					return
+				}
 			}
 		}
 	}
@@ -874,10 +1036,15 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 	defer toolSpan.End()
 
 	ctx = context.WithValue(ctx, mcpSessionIDCtxKey, sessionID)
+	ctx = context.WithValue(ctx, mcpProxyKeyCtxKey, rawProxyKey)
+	ctx = context.WithValue(ctx, proxyPkg.RawProxyKeyCtx, rawProxyKey)
 	ctx = context.WithValue(ctx, mcpServerNameCtxKey, serverName)
 	ctx = context.WithValue(ctx, mcpToolNameCtxKey, toolParams.Name)
 	ctx = context.WithValue(ctx, mcpMethodCtxKey, "tools/call")
 	ctx = context.WithValue(ctx, mcpServerCtxKey, serverName)
+	if memoKey != "" {
+		ctx = context.WithValue(ctx, mcpMemoKeyCtxKey, memoKey)
+	}
 	c.Request = c.Request.WithContext(ctx)
 
 	h.signRequest(c, body)
@@ -902,6 +1069,9 @@ func (h *Handler) forward(c *gin.Context, targetURL string, keyHash *string, cos
 	if keyHash != nil {
 		ctx = context.WithValue(ctx, proxyPkg.ProxyKeyHashCtx, *keyHash)
 		ctx = context.WithValue(ctx, proxyPkg.RequestCostCtx, cost)
+	}
+	if rawProxyKey, ok := ctx.Value(mcpProxyKeyCtxKey).(string); ok && rawProxyKey != "" {
+		ctx = context.WithValue(ctx, proxyPkg.RawProxyKeyCtx, rawProxyKey)
 	}
 	c.Request = c.Request.WithContext(ctx)
 

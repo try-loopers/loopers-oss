@@ -12,9 +12,12 @@ import (
 
 // ModelPrice holds the cost parameters for a specific model.
 type ModelPrice struct {
-	InputPer1M  float64 `mapstructure:"input_per_1m" json:"input_per_1m"`
-	OutputPer1M float64 `mapstructure:"output_per_1m" json:"output_per_1m"`
-	Fallback    string  `mapstructure:"fallback" json:"fallback"`
+	InputPer1M      float64 `mapstructure:"input_per_1m" json:"input_per_1m"`
+	OutputPer1M     float64 `mapstructure:"output_per_1m" json:"output_per_1m"`
+	CacheReadPer1M  float64 `mapstructure:"cache_read_per_1m" json:"cache_read_per_1m"`
+	CacheWritePer1M float64 `mapstructure:"cache_write_per_1m" json:"cache_write_per_1m"`
+	Fallback        string  `mapstructure:"fallback" json:"fallback"`
+	FastTier        string  `mapstructure:"fast_tier" json:"fast_tier"`
 }
 
 // ProviderConfig holds the pricing config for a specific provider.
@@ -162,6 +165,30 @@ func (s *Store) GetModelPrice(provider, model string) (inputPer1M, outputPer1M f
 	return modelPrice.InputPer1M, modelPrice.OutputPer1M, defaultMaxOutputTokens
 }
 
+// GetModelPriceDetails returns the full pricing rates (including cache read/write) and default max output tokens for a model.
+func (s *Store) GetModelPriceDetails(provider, model string) (price ModelPrice, defaultMaxOutputTokens int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	provConf, hasProv := s.config.Providers[provider]
+	if !hasProv {
+		return ModelPrice{}, 0
+	}
+
+	defaultMaxOutputTokens = provConf.DefaultMaxOutputTokens
+
+	modelPrice, hasModel := provConf.Models[model]
+	if !hasModel {
+		fallback, hasFallback := provConf.Models["_fallback"]
+		if hasFallback {
+			return fallback, defaultMaxOutputTokens
+		}
+		return ModelPrice{}, defaultMaxOutputTokens
+	}
+
+	return modelPrice, defaultMaxOutputTokens
+}
+
 // GetFallback returns the configured fallback model for the given provider and model, or empty string if none configured.
 func (s *Store) GetFallback(provider, model string) string {
 	s.mu.RLock()
@@ -178,6 +205,24 @@ func (s *Store) GetFallback(provider, model string) string {
 	}
 
 	return modelPrice.Fallback
+}
+
+// GetFastTier returns the configured fast tier model for the given provider and model, or empty string if none configured.
+func (s *Store) GetFastTier(provider, model string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	provConf, hasProv := s.config.Providers[provider]
+	if !hasProv {
+		return ""
+	}
+
+	modelPrice, hasModel := provConf.Models[model]
+	if !hasModel {
+		return ""
+	}
+
+	return modelPrice.FastTier
 }
 
 // GetToolCost returns the configured cost for the given tool, or the default unknown tool cost if not mapped.

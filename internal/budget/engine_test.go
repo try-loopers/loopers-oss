@@ -205,3 +205,43 @@ func TestSessionEnforcement(t *testing.T) {
 		t.Errorf("expected blocked with session_steps_exceeded; got allowed=%v, status=%s, val1=%f, val2=%f", allowed, status, val1, val2)
 	}
 }
+
+func TestRecordSavingsAndGetBudgetStatus(t *testing.T) {
+	mr, client := setupTestRedis(t)
+	defer client.Close()
+	defer mr.Close()
+
+	ctx := context.Background()
+	keyHash := "test-savings-key"
+
+	// Setup budget config: $10.00 daily limit
+	configKey := "loopers:budget:{" + keyHash + "}:config"
+	client.GetUnderlyingClient().HSet(ctx, configKey, "daily", "10.00")
+
+	// Initially spend and saved should be 0
+	status, err := client.GetBudgetStatus(ctx, keyHash)
+	if err != nil {
+		t.Fatalf("GetBudgetStatus failed: %v", err)
+	}
+	if status["daily"].Limit != 10.00 {
+		t.Errorf("expected daily limit 10.00, got %f", status["daily"].Limit)
+	}
+	if status["daily"].SavedUSD != 0.0 {
+		t.Errorf("expected initial saved 0.0, got %f", status["daily"].SavedUSD)
+	}
+
+	// Record $2.50 of savings
+	err = client.RecordSavings(ctx, keyHash, 2.50)
+	if err != nil {
+		t.Fatalf("RecordSavings failed: %v", err)
+	}
+
+	// Verify savings reflected in GetBudgetStatus
+	status, err = client.GetBudgetStatus(ctx, keyHash)
+	if err != nil {
+		t.Fatalf("GetBudgetStatus failed: %v", err)
+	}
+	if status["daily"].SavedUSD != 2.50 {
+		t.Errorf("expected daily saved 2.50, got %f", status["daily"].SavedUSD)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -270,6 +271,13 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 
 	providerKey, _ := c.Get(proxy.ProviderKeyCtx)
 	providerKeyStr, _ := providerKey.(string)
+	if providerKeyStr == "" {
+		if val := os.Getenv(strings.ToUpper(providerName) + "_API_KEY"); val != "" {
+			providerKeyStr = val
+		} else if val := viper.GetString("providers." + providerName + ".api_key"); val != "" {
+			providerKeyStr = val
+		}
+	}
 
 	// 2. Parse request body for model, max_tokens, and streaming
 	bodyBytes, exists := c.Get(RequestBodyCtx)
@@ -319,11 +327,51 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 		span.SetAttributes(attribute.String("gen_ai.request.model", model))
 	}
 
+	// Canonicalize request for KV cache stabilization
+	if canonicalized, cErr := proxy.CanonicalizeRequest(providerName, keyHash, mutatedBody); cErr == nil {
+		mutatedBody = canonicalized
+	} else {
+		logging.Logger.Warn().Err(cErr).Msg("failed_to_canonicalize_request")
+	}
+
+	earlySessionID := c.GetHeader("X-Loopers-Session-ID")
+	if earlySessionID == "" && len(keyHash) >= 32 {
+		earlySessionID = fmt.Sprintf("%s-%s-%s-%s-%s", keyHash[0:8], keyHash[8:12], keyHash[12:16], keyHash[16:20], keyHash[20:32])
+	}
+	var rawProxyKey string
+	if pk, ok := c.Get("ProxyKey"); ok {
+		rawProxyKey, _ = pk.(string)
+	}
+	if rawProxyKey == "" {
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			rawProxyKey = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			rawProxyKey = authHeader
+		}
+	}
+
+	if earlySessionID != "" && rawProxyKey != "" && s.redis != nil {
+		isFrontier := isFrontierModel(model)
+		if hydrated, hErr := proxy.HydratePromptTail(c.Request.Context(), keyHash, rawProxyKey, earlySessionID, mutatedBody, s.redis.GetUnderlyingClient(), isFrontier, 16000); hErr == nil {
+			mutatedBody = hydrated
+		}
+	}
+
+	var promptText string
+	var driftScore float64
+	var traceCount int
+
+	if earlySessionID != "" && session.IsValidID(earlySessionID) && s.sessionManager != nil {
+		if traces, trErr := s.sessionManager.GetSessionTraces(c.Request.Context(), keyHash, earlySessionID); trErr == nil {
+			traceCount = len(traces)
+		}
+	}
+
 	if s.policyEngine != nil {
 		// Build a stateful session context for OPA — fetch taint history if a session is active.
 		// We do a best-effort early read of the session ID here; the full session enforcement
 		// happens later in enforceSessionLimits, but we need the taint context for policy now.
-		earlySessionID := c.GetHeader("X-Loopers-Session-ID")
 		policySessionCtx := policy.SessionContext{
 			ID: earlySessionID,
 		}
@@ -558,6 +606,12 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 			return
 		}
 
+		promptText = actionCtx.PromptText
+		if policySessionCtx.Drift.DriftScore > 0 {
+			driftScore = policySessionCtx.Drift.DriftScore
+		}
+		traceCount = len(policySessionCtx.Traces)
+
 		if earlySessionID != "" && session.IsValidID(earlySessionID) && s.sessionManager != nil {
 			truncatedPrompt := actionCtx.PromptText
 			if len(truncatedPrompt) > 512 {
@@ -585,6 +639,21 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 		}
 	}
 
+	if promptText == "" {
+		if actCtx, _ := proxy.MapLLMRequestToContext(providerName, mutatedBody); actCtx.PromptText != "" {
+			promptText = actCtx.PromptText
+		}
+	}
+
+	if maxTokensVal == 0 {
+		_, _, defaultMaxOut := s.pricing.GetModelPrice(providerName, model)
+		maxTokensVal = defaultMaxOut
+	}
+
+	model, mutatedBody = s.applySmartFinOpsRouting(
+		c, providerName, model, mutatedBody, prov, promptText, driftScore, traceCount, &maxTokensVal,
+	)
+
 	// 3. Pricing lookup
 	inputPrice, outputPrice, defaultMaxOut := s.pricing.GetModelPrice(providerName, model)
 	if maxTokensVal == 0 {
@@ -611,7 +680,13 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 		return // response already sent by enforceBudgetWithFallback
 	}
 
+	modelPriceDetails, _ := s.pricing.GetModelPriceDetails(providerName, model)
+	cacheReadPrice, cacheWritePrice := pricing.ResolveCachePrices(providerName, modelPriceDetails.InputPer1M, modelPriceDetails.CacheReadPer1M, modelPriceDetails.CacheWritePer1M)
+
 	sessionID := c.GetHeader("X-Loopers-Session-ID")
+	if sessionID == "" && len(keyHash) >= 32 {
+		sessionID = fmt.Sprintf("%s-%s-%s-%s-%s", keyHash[0:8], keyHash[8:12], keyHash[12:16], keyHash[16:20], keyHash[20:32])
+	}
 	var sessionBudget float64
 	var sessionMaxSteps int
 
@@ -733,6 +808,8 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 	ctx = context.WithValue(ctx, isStreamCtx, isStream)
 	ctx = context.WithValue(ctx, inputPriceCtx, inputPrice)
 	ctx = context.WithValue(ctx, outputPriceCtx, outputPrice)
+	ctx = context.WithValue(ctx, cacheReadPriceCtx, cacheReadPrice)
+	ctx = context.WithValue(ctx, cacheWritePriceCtx, cacheWritePrice)
 	ctx = context.WithValue(ctx, inputTokensCtx, inputTokens)
 	ctx = context.WithValue(ctx, keyNameCtx, meta.Name)
 	if meta.AgentName != "" {
@@ -779,6 +856,8 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 	isStream, _ := ctx.Value(isStreamCtx).(bool)
 	inputPrice, _ := ctx.Value(inputPriceCtx).(float64)
 	outputPrice, _ := ctx.Value(outputPriceCtx).(float64)
+	cacheReadPrice, _ := ctx.Value(cacheReadPriceCtx).(float64)
+	cacheWritePrice, _ := ctx.Value(cacheWritePriceCtx).(float64)
 	sessionID, _ := ctx.Value(sessionIDCtx).(string)
 	reqID, _ := ctx.Value(requestIDCtx).(string)
 
@@ -828,7 +907,7 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 	if isStream {
 		var totalPaid float64 = reservedCost
 
-		resp.Body = proxy.NewSSEStreamReader(ctx, resp.Body, prov, inputPrice, outputPrice,
+		resp.Body = proxy.NewSSEStreamReaderWithCache(ctx, resp.Body, prov, inputPrice, outputPrice, cacheReadPrice, cacheWritePrice,
 			func(cost float64) bool {
 				delta := cost - totalPaid
 				if delta <= 0 {
@@ -840,9 +919,15 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 				}
 				return false
 			},
-			func(actualCost float64, inTokens, outTokens int, completion string, forcedCut bool) {
+			func(actualCost, savedUSD float64, inTokens, outTokens int, completion string, forcedCut bool) {
 				s.redis.LeaseManager.ReconcileSpend(ctx, keyHash, totalPaid, actualCost)
 				s.checkBudgetOverdrawAsync(ctx, keyHash, provName, model)
+				if savedUSD > 0 {
+					savingsUSDTotal.WithLabelValues(provName, keyHash).Add(savedUSD)
+					if s.redis != nil {
+						_ = s.redis.RecordSavings(context.Background(), keyHash, savedUSD)
+					}
+				}
 				if sessionID != "" {
 					sessionSpendKey := fmt.Sprintf("loopers:session:{%s}:%s:spend", keyHash, sessionID)
 					if err := s.redis.GetUnderlyingClient().IncrBy(ctx, sessionSpendKey, budget.ToNano(actualCost-totalPaid)).Err(); err != nil {
@@ -994,10 +1079,20 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 
 		var totalInputTokens int
 		var totalOutputTokens int
+		var cacheReadTokens int
+		var cacheWriteTokens int
 
 		var completion string
 		if prov != nil {
-			totalInputTokens, totalOutputTokens, _ = prov.ParseNonStreamResponse(respBodyBytes)
+			if cp, ok := prov.(provider.CacheAwareProvider); ok {
+				usage, _ := cp.ParseNonStreamUsage(respBodyBytes)
+				totalInputTokens = usage.InputTokens
+				totalOutputTokens = usage.OutputTokens
+				cacheReadTokens = usage.CacheReadTokens
+				cacheWriteTokens = usage.CacheCreationTokens
+			} else {
+				totalInputTokens, totalOutputTokens, _ = prov.ParseNonStreamResponse(respBodyBytes)
+			}
 			if compl, err := proxy.MapLLMResponse(provName, respBodyBytes); err == nil {
 				completion = compl
 				if len(completion) > 512 {
@@ -1006,11 +1101,20 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 			}
 		}
 
-		actualCost := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
+		actualCost, savedUSD := pricing.ActualCostWithCache(totalInputTokens, totalOutputTokens, cacheReadTokens, cacheWriteTokens, inputPrice, outputPrice, cacheReadPrice, cacheWritePrice)
 		s.redis.LeaseManager.ReconcileSpend(ctx, keyHash, reservedCost, actualCost)
 		s.checkBudgetOverdrawAsync(ctx, keyHash, provName, model)
 		if !viper.GetBool("server.strip_budget_headers") {
 			resp.Header.Set("X-Loopers-Request-Cost", fmt.Sprintf("%.6f", actualCost))
+			if savedUSD > 0 {
+				resp.Header.Set("X-Loopers-Saved-USD", fmt.Sprintf("%.6f", savedUSD))
+			}
+		}
+		if savedUSD > 0 {
+			savingsUSDTotal.WithLabelValues(provName, keyHash).Add(savedUSD)
+			if s.redis != nil {
+				_ = s.redis.RecordSavings(context.Background(), keyHash, savedUSD)
+			}
 		}
 
 		if sessionID != "" {
@@ -1163,3 +1267,79 @@ func applyPromptTransforms(body []byte, transforms []policy.TransformRule) []byt
 	}
 	return body
 }
+
+func isFrontierModel(model string) bool {
+	m := strings.ToLower(model)
+	if strings.Contains(m, "mini") || strings.Contains(m, "haiku") || strings.Contains(m, "flash") {
+		return false
+	}
+	return strings.Contains(m, "gpt-4") || strings.Contains(m, "claude-3") || strings.Contains(m, "o1") || strings.Contains(m, "o3") || strings.Contains(m, "gemini-1.5-pro")
+}
+
+func isSimpleTurn(prompt string, driftScore float64) bool {
+	if len(prompt) == 0 || len(prompt) > 600 {
+		return false
+	}
+	if driftScore >= 0.20 {
+		return false
+	}
+	lower := strings.ToLower(prompt)
+	complexMarkers := []string{"architect", "prove", "step by step", "root cause", "security audit"}
+	for _, marker := range complexMarkers {
+		if strings.Contains(lower, marker) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) applySmartFinOpsRouting(
+	c *gin.Context,
+	providerName string,
+	model string,
+	mutatedBody []byte,
+	prov provider.Provider,
+	promptText string,
+	driftScore float64,
+	traceCount int,
+	maxTokensVal *int,
+) (string, []byte) {
+	if prov == nil {
+		return model, mutatedBody
+	}
+
+	isSimple := isSimpleTurn(promptText, driftScore)
+
+	msgCount := 0
+	var reqMap map[string]interface{}
+	if err := json.Unmarshal(mutatedBody, &reqMap); err == nil {
+		if msgs, ok := reqMap["messages"].([]interface{}); ok {
+			msgCount = len(msgs)
+		}
+	}
+
+	isWarmCache := traceCount > 1 || msgCount > 2
+
+	// Case A: Cold Cache (Turn 1 / traceCount <= 1 && msgCount <= 2)
+	if !isWarmCache {
+		if isSimple {
+			fastTier := s.pricing.GetFastTier(providerName, model)
+			if fastTier != "" && fastTier != model {
+				if rewritten, err := prov.RewriteModel(c.Request, mutatedBody, fastTier); err == nil {
+					c.Writer.Header().Set("X-Loopers-FinOps-Route", "fast-tier")
+					return fastTier, rewritten
+				}
+			}
+		}
+	} else {
+		// Case B: Warm Cache (traceCount > 1 || msgCount > 2)
+		// Model is pinned to preserve the 90% KV cache read discount.
+		if isSimple && *maxTokensVal > 1024 {
+			*maxTokensVal = 1024
+			c.Writer.Header().Set("X-Loopers-FinOps-Throttled", "true")
+		}
+	}
+
+	return model, mutatedBody
+}
+

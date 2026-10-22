@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"net/http"
+
+	"github.com/try-loopers/loopers-oss/pkg/api"
 )
 
 // Provider defines the contract every AI provider adapter must implement.
@@ -41,4 +43,12 @@ type Provider interface {
 
 	// FormatBudgetExceededSSE returns the provider-specific SSE error frame for mid-stream budget cut.
 	FormatBudgetExceededSSE() []byte
+}
+
+// CacheAwareProvider is an optional interface implemented by providers that report
+// KV-cache reads and writes (e.g. Anthropic, OpenAI).
+type CacheAwareProvider interface {
+	Provider
+	ParseNonStreamUsage(body []byte) (usage api.TokenUsage, err error)
+	ParseStreamChunkUsage(chunk []byte) (usage api.TokenUsage, isDone bool, err error)
 }

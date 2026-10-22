@@ -36,6 +36,11 @@ var (
 		Help: "Total spend in USD tracked by Loopers",
 	}, []string{"provider", "key_hash"})
 
+	savingsUSDTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "loopers_savings_usd_total",
+		Help: "Total USD saved via prompt caching and token optimization",
+	}, []string{"provider", "key_hash"})
+
 	requestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "loopers_request_duration_seconds",
 		Help:    "AI request duration in seconds",

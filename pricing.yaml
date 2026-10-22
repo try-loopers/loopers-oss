@@ -26,15 +26,25 @@ providers:
       "gpt-4o":
         input_per_1m: 2.50
         output_per_1m: 10.00
+        cache_read_per_1m: 1.25
+        cache_write_per_1m: 2.50
+        fast_tier: "gpt-4o-mini"
       "gpt-4o-mini":
         input_per_1m: 0.15
         output_per_1m: 0.60
+        cache_read_per_1m: 0.075
+        cache_write_per_1m: 0.15
       "o3":
         input_per_1m: 20.00
         output_per_1m: 80.00
+        cache_read_per_1m: 10.00
+        cache_write_per_1m: 20.00
+        fast_tier: "o4-mini"
       "o4-mini":
         input_per_1m: 1.10
         output_per_1m: 4.40
+        cache_read_per_1m: 0.55
+        cache_write_per_1m: 1.10
       "_fallback":
         input_per_1m: 30.00
         output_per_1m: 180.00
@@ -45,12 +55,20 @@ providers:
       "claude-opus-4-6":
         input_per_1m: 5.00
         output_per_1m: 25.00
+        cache_read_per_1m: 0.50
+        cache_write_per_1m: 6.25
+        fast_tier: "claude-sonnet-4-6"
       "claude-sonnet-4-6":
         input_per_1m: 3.00
         output_per_1m: 15.00
+        cache_read_per_1m: 0.30
+        cache_write_per_1m: 3.75
+        fast_tier: "claude-haiku-4-5"
       "claude-haiku-4-5":
         input_per_1m: 1.00
         output_per_1m: 5.00
+        cache_read_per_1m: 0.10
+        cache_write_per_1m: 1.25
       "_fallback":
         input_per_1m: 5.00
         output_per_1m: 25.00
@@ -202,6 +220,11 @@ providers:
   openrouter:
     default_max_output_tokens: 16384
     models:
+      "nvidia/nemotron-3.5-super-vl:free":
+        input_per_1m: 0.00
+        output_per_1m: 0.00
+        cache_read_per_1m: 0.00
+        cache_write_per_1m: 0.00
       "_fallback":
         input_per_1m: 1.00
         output_per_1m: 3.00
