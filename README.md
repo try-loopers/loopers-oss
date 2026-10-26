@@ -221,7 +221,7 @@ loopers serve --presets safety,safety_drift,pci,mcp_sandbox
 
 ```bash
 # Via Homebrew (macOS / Linux)
-brew install cursed-me/tap/loopers
+brew install try-loopers/tap/loopers
 
 # Via Docker
 docker pull ghcr.io/try-loopers/loopers:latest
