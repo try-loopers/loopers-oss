@@ -660,6 +660,9 @@ var budgetStatusCmd = &cobra.Command{
 		for _, w := range windowsOrdered {
 			s := status[w]
 			ui.PrintBudgetBar(w, s.CurrentSpend, s.Limit)
+			if s.SavedUSD > 0 {
+				fmt.Printf("    ↳ Saved by Loopers (%s): $%.4f\n", w, s.SavedUSD)
+			}
 		}
 	},
 }
@@ -757,6 +760,12 @@ var execCmd = &cobra.Command{
 				sessionID := os.Getenv("LOOPERS_SESSION_ID")
 				if sessionID != "" {
 					req.Header.Set("X-Loopers-Session-ID", sessionID)
+				}
+				if os.Getenv("LOOPERS_SKIP_HYDRATION") == "true" {
+					req.Header.Set("X-Loopers-Skip-Hydration", "true")
+				}
+				if os.Getenv("LOOPERS_FORCE_FRONTIER") == "true" {
+					req.Header.Set("X-Loopers-Force-Frontier", "true")
 				}
 			},
 		}

@@ -42,6 +42,33 @@ func parseAnthropicStreamChunk(chunk []byte) (int, int, bool, error) {
 	return 0, 0, false, nil
 }
 
+// parseAnthropicStreamChunkUsage extracts token usage including cache reads and writes.
+func parseAnthropicStreamChunkUsage(chunk []byte) (api.TokenUsage, bool, error) {
+	eventType, dataPayload := parseAnthropicFrame(chunk)
+
+	if eventType == "message_start" {
+		var msgStart api.AnthropicMessageStart
+		if err := json.Unmarshal(dataPayload, &msgStart); err == nil {
+			return api.TokenUsage{
+				InputTokens:         msgStart.Message.Usage.InputTokens,
+				CacheReadTokens:     msgStart.Message.Usage.CacheReadInputTokens,
+				CacheCreationTokens: msgStart.Message.Usage.CacheCreationInputTokens,
+			}, false, nil
+		}
+	} else if eventType == "message_delta" {
+		var msgDelta api.AnthropicMessageDelta
+		if err := json.Unmarshal(dataPayload, &msgDelta); err == nil {
+			return api.TokenUsage{
+				OutputTokens: msgDelta.Usage.OutputTokens,
+			}, false, nil
+		}
+	} else if eventType == "message_stop" {
+		return api.TokenUsage{}, true, nil
+	}
+
+	return api.TokenUsage{}, false, nil
+}
+
 // formatAnthropicBudgetExceededSSE returns the Anthropic SSE error frame for budget exceeded.
 func formatAnthropicBudgetExceededSSE() []byte {
 	return []byte("event: error\ndata: {\"error\":{\"type\":\"api_error\",\"message\":\"Budget exceeded mid-stream\"}}\n\n")

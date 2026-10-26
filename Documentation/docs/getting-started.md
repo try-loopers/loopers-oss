@@ -7,7 +7,12 @@ description: Install and run Loopers to protect your budget in under one minute
 
 # Getting Started with Loopers
 
-Loopers is a tool that helps you control how much money you spend on AI. It works like a smart guard for your wallet. When your application wants to talk to an AI service, it sends the request to Loopers first. Loopers checks if you have enough money left in your budget. If you do, it forwards the request. If you do not, it stops the request immediately to prevent you from spending too much.
+**Loopers** is an open-source, baremetal **AI Firewall** engineered specifically for autonomous agent swarms and LLM applications. Built in native Go, Loopers acts as a transparent, sub-millisecond reverse proxy that governs LLM requests and Model Context Protocol (MCP) tool execution.
+
+Loopers provides dual-regime protection across your entire AI infrastructure:
+
+* **Regime 1: Rogue Agent Defense ("Bad Days" Protection)** — Active circuit breakers that instantly halt infinite agent loops, multi-turn objective drift, recursive MCP tool execution, data exfiltration, and budget blowouts.
+* **Regime 2: Inline Context Acceleration & Wire Optimization ("Normal Days" Optimization)** — Slashes daily LLM production bills by **65% to 75%** on normal, healthy agent traffic through Ghost Token side-channel offload, deterministic KV-cache prefix canonicalization, and fast-tier routing with zero quality degradation.
 
 This guide will help you get set up and protected in under five minutes.
 

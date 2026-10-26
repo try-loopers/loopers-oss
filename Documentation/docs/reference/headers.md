@@ -19,6 +19,8 @@ Loopers uses headers to get settings from your application and return informatio
 | X-Loopers-Session-ID | No | Unique name for this session (for loop detection) |
 | X-Loopers-Session-Budget | No | Maximum spending limit in USD for this session |
 | X-Loopers-Session-Max-Steps | No | Maximum AI calls allowed for this session |
+| X-Loopers-Skip-Hydration | No | Skip prompt tail-hydration of Ghost Tokens on intermediate turns |
+| X-Loopers-Force-Frontier | No | Bypass Smart FinOps tier routing and force execution on the frontier model |
 | Content-Type: application/json | Yes | Required for all POST requests |
 
 ## Response Headers
@@ -38,6 +40,10 @@ All `X-Loopers-*` budget and telemetry response headers can be completely suppre
 | X-Loopers-Policy-Block | Set to `"true"` when a request or MCP tool call is blocked by OPA policy |
 | X-Loopers-Block-Reason | Contains the denial reason rule text from the matching Rego policy |
 | X-Loopers-Signature | Injected back into the HTTP response headers to return the cryptographic action receipt to the downstream client. |
+| X-Loopers-FinOps-Route | Indicates routing tier (e.g., `"fast-tier"`) when Smart FinOps model routing is active. |
+| X-Loopers-FinOps-Throttled | Set to `"true"` when output tokens were bounded on simple intermediate verification turns. |
+| X-Loopers-Cache-Read-Tokens | Number of input prompt tokens read from upstream provider KV cache. |
+| X-Loopers-Cache-Write-Tokens | Number of input prompt tokens written into upstream provider KV cache. |
 
 
 ## Error Codes

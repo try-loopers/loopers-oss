@@ -72,7 +72,8 @@ var doctorCmd = &cobra.Command{
 		// 3. Validate pricing.yaml
 		fmt.Println()
 		fmt.Println("  Data")
-		_, err = pricing.LoadStore(pricingPath)
+		var pricingStore *pricing.Store
+		pricingStore, err = pricing.LoadStore(pricingPath)
 		if err != nil {
 			ui.Error(fmt.Sprintf("Pricing: validation failed (%v)", err))
 			issues++
@@ -100,9 +101,9 @@ var doctorCmd = &cobra.Command{
 			}
 		}
 
-		// 5. Check Firewall Security Engines
+		// 5. Check Firewall Security Engines (Regime 1: Rogue Agent Defense)
 		fmt.Println()
-		fmt.Println("  Firewall Security Engines")
+		fmt.Println("  Firewall Security Engines (Regime 1)")
 
 		// Loop Detection
 		if viper.GetBool("loop_detection.enabled") {
@@ -132,7 +133,49 @@ var doctorCmd = &cobra.Command{
 			ui.Warn("Persistent Risk Profile Engine: DISABLED")
 		}
 
-		// 6. Check if firewall runtime is running
+		// 6. Check Context Acceleration Engines (Regime 2: Normal Days Optimization)
+		fmt.Println()
+		fmt.Println("  Context Acceleration Engines (Regime 2)")
+
+		// Ghost Tokens
+		if viper.GetBool("ghost_tokens.enabled") {
+			thresh := viper.GetInt("ghost_tokens.threshold_bytes")
+			if thresh == 0 {
+				thresh = 512
+			}
+			ttl := viper.GetInt("ghost_tokens.ttl_seconds")
+			if ttl == 0 {
+				ttl = 3600
+			}
+			ui.Success(fmt.Sprintf("Ghost Token Engine: ENABLED (Threshold: %d bytes, TTL: %ds)", thresh, ttl))
+		} else {
+			ui.Warn("Ghost Token Engine: DISABLED")
+		}
+
+		// Schema Minifier & Memoization
+		if viper.GetBool("sanitizer.minify_schemas") {
+			ui.Success("Tool Schema Minifier: ENABLED")
+		} else {
+			ui.Warn("Tool Schema Minifier: DISABLED")
+		}
+
+		if viper.GetBool("sanitizer.memoize_read_only") {
+			ui.Success("Read-Only Tool Memoizer: ENABLED")
+		} else {
+			ui.Warn("Read-Only Tool Memoizer: DISABLED")
+		}
+
+		// Fast-Tier Routing Target Check
+		if pricingStore != nil {
+			fastTierCount := pricingStore.FastTierCount()
+			if fastTierCount > 0 {
+				ui.Success(fmt.Sprintf("Smart Fast-Tier Routing: CONFIGURED (%d models with fast_tier targets)", fastTierCount))
+			} else {
+				ui.Warn("Smart Fast-Tier Routing: No models mapped with fast_tier targets in pricing.yaml")
+			}
+		}
+
+		// 7. Check if firewall runtime is running
 		port := viper.GetString("server.port")
 		if port == "" {
 			port = "8080"

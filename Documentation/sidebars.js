@@ -31,6 +31,7 @@ const sidebars = {
         'concepts/budget-windows',
         'concepts/session-budgets',
         'concepts/agent-loop-detection',
+        'concepts/context-acceleration',
         'concepts/security-events',
         'concepts/concurrency-correctness',
       ],

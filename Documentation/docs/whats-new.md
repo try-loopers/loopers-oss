@@ -11,6 +11,16 @@ Stay up to date with the newest capabilities we've added to the Loopers cost fir
 
 ---
 
+## Inline Context Acceleration & Wire FinOps (Normal Days Optimization)
+Loopers AI Firewall now features an integrated inline acceleration engine to drastically cut token consumption and baseline costs on healthy production agent traffic:
+- **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`)**: Bulky tool outputs (MCP responses, SQL payloads > 512 bytes) are encrypted via AES-256-GCM / HKDF and offloaded to local Redis, replaced in intermediate prompt context by lightweight, schema-compliant Ghost Stubs (~80 tokens). Yields **65%–75% input token compression**.
+- **Dynamic Tail-Hydration (`HydratePromptTail`)**: Automatically gates payload restoration on frontier reasoning/synthesis turns (`!isSimpleTurn`), restoring full raw context via `<loopers_hydrated_context>` when deep analysis is needed while keeping intermediate verification turns ultra-lean.
+- **Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`)**: Sorts tool schemas, normalizes whitespace, and stabilizes timestamps to guarantee upstream KV prompt cache hits across OpenAI, Anthropic, and OpenRouter for up to **90% cache read discounts**.
+- **Smart Fast-Tier Routing (`internal/server/router.go`)**: Routes lightweight tool verification turns to fast models (e.g., `deepseek-v4-pro` -> `deepseek-v4.1-flash-1017`, `gpt-4o` -> `gpt-4o-mini`) on cold cache, while preserving model pinning on warm cache to capture prompt cache read discounts.
+- **Zero-SDK Session Derivation**: Automatically tracks multi-turn trajectories using header fallbacks (`X-Loopers-Session-ID`, `X-Session-ID`, `X-Thread-ID`) or cryptographic prompt hashing with zero code changes required in agent frameworks.
+
+---
+
 ## Tool Blast Radius Risk Scoring (Layer 5)
 Loopers now computes an intrinsic risk score (0–100) and risk tier (`low`, `medium`, `high`, `critical`) for every MCP and LLM tool execution before passing it to policy evaluation:
 - **Deterministic Factor Engine (`internal/blastradius`)**: Evaluates destructive verbs (+35), OS shell execution (+30), IAM & secret targets (+25), production databases & cluster scopes (+25), financial transfers (+25), external egress URLs/IPs (+25), and bulk wildcards/traversals (+20) with pure read-only mitigations (-10).

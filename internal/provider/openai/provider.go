@@ -110,6 +110,37 @@ func (o *OpenAIProvider) ParseNonStreamResponse(body []byte) (inputTokens int, o
 	return respObj.Usage.PromptTokens, respObj.Usage.CompletionTokens, nil
 }
 
+// ParseNonStreamUsage extracts detailed token usage including prompt_tokens_details.cached_tokens.
+func (o *OpenAIProvider) ParseNonStreamUsage(body []byte) (api.TokenUsage, error) {
+	var respObj struct {
+		Usage *api.OpenAIUsage `json:"usage"`
+	}
+	if err := json.Unmarshal(body, &respObj); err != nil {
+		return api.TokenUsage{}, err
+	}
+	if respObj.Usage == nil {
+		return api.TokenUsage{}, nil
+	}
+	cached := 0
+	if respObj.Usage.PromptTokensDetails != nil {
+		cached = respObj.Usage.PromptTokensDetails.CachedTokens
+	}
+	uncached := respObj.Usage.PromptTokens - cached
+	if uncached < 0 {
+		uncached = respObj.Usage.PromptTokens
+	}
+	return api.TokenUsage{
+		InputTokens:     uncached,
+		OutputTokens:    respObj.Usage.CompletionTokens,
+		CacheReadTokens: cached,
+	}, nil
+}
+
+// ParseStreamChunkUsage processes an SSE stream chunk and extracts detailed token usage.
+func (o *OpenAIProvider) ParseStreamChunkUsage(chunk []byte) (api.TokenUsage, bool, error) {
+	return parseOpenAIStreamChunkUsage(chunk)
+}
+
 func (o *OpenAIProvider) FormatBudgetExceededSSE() []byte {
 	return formatOpenAIBudgetExceededSSE()
 }

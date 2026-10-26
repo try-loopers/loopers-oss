@@ -23,6 +23,8 @@ func screenMCP() {
 		cbThreshold          = "5"
 		cbWindowSeconds      = "60"
 		sanitizerMaxDesc     = "1024"
+		minifySchemas        = true
+		memoizeReadOnly      = true
 	)
 
 	// Attempt to read current loopers.yaml to pre-fill
@@ -60,6 +62,21 @@ func screenMCP() {
 					if v, ok := sCfg["max_description_length"].(int); ok {
 						sanitizerMaxDesc = fmt.Sprintf("%d", v)
 					}
+					if v, ok := sCfg["minify_schemas"].(bool); ok {
+						minifySchemas = v
+					}
+					if v, ok := sCfg["memoize_read_only"].(bool); ok {
+						memoizeReadOnly = v
+					}
+				}
+			}
+
+			if sCfg, ok := cfg["sanitizer"].(map[string]interface{}); ok {
+				if v, ok := sCfg["minify_schemas"].(bool); ok {
+					minifySchemas = v
+				}
+				if v, ok := sCfg["memoize_read_only"].(bool); ok {
+					memoizeReadOnly = v
 				}
 			}
 		}
@@ -79,6 +96,8 @@ func screenMCP() {
 		).Title("Circuit Breaker"),
 		huh.NewGroup(
 			huh.NewInput().Title("Max Description Length (Recommended: 1024)").Value(&sanitizerMaxDesc),
+			huh.NewConfirm().Title("Minify Tool Schemas? (Recommended: Yes)").Description("Strip schema redundancy to maximize KV cache hits").Value(&minifySchemas),
+			huh.NewConfirm().Title("Memoize Read-Only Tool Responses? (Recommended: Yes)").Description("Cache idempotent MCP reads").Value(&memoizeReadOnly),
 		).Title("Tool Sanitizer"),
 	).WithTheme(ui.GetHuhTheme()).WithKeyMap(ui.GetHuhKeyMap()).Run()
 
@@ -107,7 +126,15 @@ func screenMCP() {
 		},
 		"sanitizer": map[string]interface{}{
 			"max_description_length": parseInt(sanitizerMaxDesc),
+			"minify_schemas":         minifySchemas,
+			"memoize_read_only":      memoizeReadOnly,
 		},
+	}
+
+	// Also update root sanitizer block
+	root["sanitizer"] = map[string]interface{}{
+		"minify_schemas":    minifySchemas,
+		"memoize_read_only": memoizeReadOnly,
 	}
 
 	// Preserve existing servers and tool_allowlist if they exist

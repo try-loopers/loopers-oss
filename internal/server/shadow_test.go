@@ -28,13 +28,22 @@ func (m *mockProvider) RewritePath(originalPath string) string           { retur
 func (m *mockProvider) ParseRequest(req *http.Request, body []byte) (string, bool, int, []byte, error) {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err == nil {
+		maxTok := 0
+		if mt, exists := payload["max_tokens"].(float64); exists {
+			maxTok = int(mt)
+		}
 		if model, ok := payload["model"].(string); ok {
-			return model, false, 100, body, nil
+			return model, false, maxTok, body, nil
 		}
 	}
-	return "mock-model", false, 100, body, nil
+	return "mock-model", false, 0, body, nil
 }
 func (m *mockProvider) RewriteModel(req *http.Request, body []byte, fallbackModel string) ([]byte, error) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err == nil {
+		payload["model"] = fallbackModel
+		return json.Marshal(payload)
+	}
 	return body, nil
 }
 func (m *mockProvider) CountInputTokens(ctx context.Context, model string, body []byte, providerKey string) (int, error) {

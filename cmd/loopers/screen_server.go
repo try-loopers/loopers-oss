@@ -33,6 +33,9 @@ func screenInit() {
 		pricingPath         = viper.GetString("pricing_path")
 		sessionMaxPerKey    = viper.GetString("session.max_per_key")
 		allowClientOverride = viper.GetBool("session.allow_client_budget_override")
+		enableGhostTokens   = true
+		minifySchemas       = true
+		memoizeReadOnly     = true
 	)
 
 	// Defaults if empty
@@ -102,6 +105,13 @@ func screenInit() {
 			huh.NewInput().Title("Max Concurrent Sessions per Key (Recommended: 10)").Value(&sessionMaxPerKey),
 			huh.NewConfirm().Title("Allow Client Budget Overrides? (Recommended: No)").Description("Should clients be able to override budgets via HTTP headers?").Value(&allowClientOverride),
 		).Title("Session Config"),
+
+		// Group 4: Context Acceleration & FinOps (Regime 2)
+		huh.NewGroup(
+			huh.NewConfirm().Title("Enable Ghost Tokens? (Recommended: Yes)").Description("Offload bulky tool results (>512B) to save 65%-75% tokens").Value(&enableGhostTokens),
+			huh.NewConfirm().Title("Minify Tool Schemas? (Recommended: Yes)").Description("Strip schema redundancy to maximize KV cache hits").Value(&minifySchemas),
+			huh.NewConfirm().Title("Memoize Read-Only Tool Responses? (Recommended: Yes)").Description("Cache idempotent MCP reads").Value(&memoizeReadOnly),
+		).Title("Context Acceleration (Regime 2)"),
 	).WithTheme(ui.GetHuhTheme()).WithKeyMap(ui.GetHuhKeyMap()).Run()
 
 	if err != nil {
@@ -150,6 +160,30 @@ func screenInit() {
 		yamlLines = append(yamlLines, "  allow_client_budget_override: true")
 	} else {
 		yamlLines = append(yamlLines, "  allow_client_budget_override: false")
+	}
+
+	yamlLines = append(yamlLines, "")
+	yamlLines = append(yamlLines, "ghost_tokens:")
+	if enableGhostTokens {
+		yamlLines = append(yamlLines, "  enabled: true")
+		yamlLines = append(yamlLines, "  threshold_bytes: 512")
+		yamlLines = append(yamlLines, "  ttl_seconds: 3600")
+	} else {
+		yamlLines = append(yamlLines, "  enabled: false")
+	}
+
+	yamlLines = append(yamlLines, "")
+	yamlLines = append(yamlLines, "sanitizer:")
+	yamlLines = append(yamlLines, "  enabled: true")
+	if minifySchemas {
+		yamlLines = append(yamlLines, "  minify_schemas: true")
+	} else {
+		yamlLines = append(yamlLines, "  minify_schemas: false")
+	}
+	if memoizeReadOnly {
+		yamlLines = append(yamlLines, "  memoize_read_only: true")
+	} else {
+		yamlLines = append(yamlLines, "  memoize_read_only: false")
 	}
 
 	yamlContent := strings.Join(yamlLines, "\n") + "\n"
