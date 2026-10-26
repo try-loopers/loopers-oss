@@ -1,9 +1,9 @@
 replicaCount: 2
 
 image:
-  repository: ghcr.io/loopers-oss/loopers
+  repository: ghcr.io/try-loopers/loopers
   pullPolicy: IfNotPresent
-  tag: "v0.4.0"
+  tag: "latest"
 
 service:
   type: ClusterIP
