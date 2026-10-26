@@ -6,7 +6,7 @@
 
 ### The AI Firewall for the Agentic Era
 
-> **Stop runaway loops. Block data exfiltration. Enforce policy. No SDK required.**
+> **The Dual-Regime AI Firewall: Cut normal LLM cloud spend by up to 68% with Ghost Tokens, and stop runaway agent loops, data exfiltration, and budget spikes before they bill. Zero SDK required.**
 
 <p align="left">
   <img src="https://img.shields.io/badge/license-MIT-black.svg?style=for-the-badge" alt="License" />
@@ -17,24 +17,42 @@
   <img src="https://img.shields.io/badge/redis-7%2B%20Required-black.svg?style=for-the-badge" alt="Redis 7+ Required" />
 </p>
 
+### Proven Dual-Regime Value at a Glance
+
+| Everyday Normal Operations ("Normal Days") | Rogue Threat Defense ("Bad Days") |
+| :--- | :--- |
+| **65% to 76% Input Token Reduction** via Ghost Token offloading | **100% Real-Time Loop Termination** (Fingerprint, Velocity, Stall) |
+| **Up to 68.35% Net LLM Bill Savings** on enterprise multi-turn workflows | **0% Budget Over-Charge Guarantee** via atomic pre-call Redis leases |
+| **94.6% Discovery Cost Drop** via smart cold-turn fast tier routing | **Sub-Millisecond DLP Redaction** (scrubs PII, secrets, internal IPs) |
+| **3.8 ms Cached Tool Execution** at **$0.00** upstream API cost | **Deterministic Policy & FSM** (OWASP Top 10, NIST, EU AI Act presets) |
+
 ---
 
-## The Problem
+## The Problem: The Two Financial & Operational Crises of Autonomous Agents
 
-**1. Uncontrolled Cost & Runaway Loops**  
-Autonomous AI agents are expensive when running unsupervised. A single stuck retry loop, recursive reasoning stall, or cascade failure can burn hundreds of dollars in API credits within minutes. Upstream provider dashboards only give post-hoc metrics and alerts after the damage has already hit your card. Loopers intercepts traffic in real time and cuts off spending before the bill is generated.
+Every enterprise running autonomous agents faces two distinct operational regimes, and existing tools fail at both:
 
-**2. Runtime Tool Poisoning & Data Exfiltration**  
-Autonomous agents ingest external web pages, parse tool responses, and execute commands. A compromised MCP server, poisoned tool response, or indirect prompt injection can turn your agent into an exfiltration vector. Outbound LLM completions frequently leak credentials, PII, or internal network IPs back to untrusted contexts. Without a runtime firewall inspecting bidirectional traffic, agents operate completely unshielded.
+### Regime 1: Normal Days - Silent Context Bloat & Crushing Cloud Bills
+Even when autonomous agents execute tasks correctly with zero errors, multi-turn tool calling is mathematically broken:
+* **70% to 80% of context is repetitive baggage**: Agents repeatedly drag massive historical tool responses (bulky MCP JSON schemas, database query dumps, file reads) into every subsequent turn. Teams repeatedly pay to transmit the exact same megabytes back and forth.
+* **Frontier Model Over-Provisioning**: Simple intermediate exploration steps (triage, reading docs, formatting) are needlessly executed on expensive frontier models ($0.20 to $5.00/1M tokens) instead of fast-tier models.
+* **The Impact**: Production agent deployments burn through thousands of dollars on completely normal, error-free days.
 
-**3. Lack of Deterministic Policy Governance**  
-As agent systems scale, relying on prompt instructions for safety and operational boundaries fails. Safety directives placed in system prompts can be overridden by jailbreaks or forgotten across long context windows. Loopers introduces a deterministic, stateful enforcement layer: declarative policies that quarantine, block, mutate, or escalate live requests at the network boundary.
+### Regime 2: Bad Days - Runaway Loops, Data Exfiltration & Silent Budget Exhaustion
+When autonomous agents fail, they fail silently, recursively, and catastrophically:
+* **Runaway Loops & Reasoning Stalls**: A single stuck retry loop or recursive reasoning stall can burn hundreds of dollars in API credits within minutes. Upstream provider dashboards only provide post-hoc alerts hours after the bill has hit your card.
+* **Tool Poisoning & Data Exfiltration**: Untrusted web scraping or poisoned MCP tool responses turn agents into exfiltration vectors, leaking internal credentials, secrets, and customer PII back to untrusted endpoints.
+* **Prompt-Based Safety Fails**: Relying on system prompts for security boundaries fails under prompt injections, jailbreaks, or long-context drift.
 
-### Origins & Authors
+Loopers sits at the network wire as an active, inline proxy that solves **both regimes simultaneously**: cutting everyday cloud bills by up to **68.35%** on normal days, while enforcing strict **0% over-charge** circuit breakers and policy governance on bad days.
 
-Loopers is created and actively maintained by **[Varad Khoriya](https://github.com/CURSED-ME)** and **[Mayank Agrawal](https://github.com/Mxyank)** (part of the Loopers organization).
+### Origins & Founder Story
 
-The project was born when an autonomous test agent got stuck in a recursive loop and ran up an unexpected bill during local development. After analyzing the root cause, it became clear that major AI platforms only offer passive telemetry rather than active circuit breakers. We built Loopers to establish an open-source, bare-metal firewall standard for autonomous agent systems.
+Loopers was founded and is actively developed by solo founder **[Varad Khoriya](https://github.com/CURSED-ME)**.
+
+The project was born when an autonomous test agent got stuck in a recursive loop during local development, burning through unexpected API credits. When analyzing the post-mortem, it became obvious that the ecosystem had two massive blind spots: major AI platforms only offer passive post-hoc billing dashboards rather than real-time circuit breakers, and healthy multi-turn agents are forced to resend massive, uncompressed context baggage on every ordinary turn.
+
+I built Loopers to establish an open-source, bare-metal AI firewall standard: delivering verifiable 68%+ FinOps savings on normal days and active circuit-breaker protection when agents go rogue.
 
 Have questions, suggestions, or need help integrating? Join the community on [GitHub Discussions](https://github.com/try-loopers/loopers-oss/discussions) or submit an issue on [GitHub Issues](https://github.com/try-loopers/loopers-oss/issues).
 
@@ -42,7 +60,7 @@ Have questions, suggestions, or need help integrating? Join the community on [Gi
 
 ---
 
-## What Loopers Is — and Is Not
+## What Loopers Is and Is Not
 
 Loopers is a **stateful, runtime security firewall** for autonomous AI agents.  
 It is **not** an AI gateway, model router, prompt management platform, or agent orchestration framework.
@@ -54,16 +72,16 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
 | **Primary Focus** | Traffic routing, model aggregation, latency | **Dual-Regime:** Rogue threat defense ("Bad Days") + Inline wire acceleration ("Normal Days") |
 | **Budget Enforcement** | Post-request tracking or passive webhook alerts | Pre-call atomic leases with 0% over-charge by design |
 | **Streaming Enforcement** | Passes stream chunks transparently | Active chunk-by-chunk SSE inspection; severs connections mid-stream |
-| **Context Compression (Ghost Tokens)** | None (raw payloads sent to LLM) | Ephemeral AES-256-GCM side-channel offload; **65%–75% input token reduction** |
+| **Context Compression (Ghost Tokens)** | None (raw payloads sent to LLM) | Ephemeral AES-256-GCM side-channel offload; **65% to 75% input token reduction** |
 | **Prefix Canonicalization** | None | Deterministic tool schema sorting & whitespace normalization for **90% KV cache hits** |
 | **Smart Fast-Tier Routing** | Static fallback on error | Dynamic routing of intermediate turns to fast-tier models with warm-cache pinning |
 | **Syntactic Normalization** | None | 5-stage de-obfuscation (Unicode homoglyphs, invisible runes, base64 decoding, token collapse) |
 | **Outbound DLP Gate** | None | Real-time scanning & redaction of PII, secrets, and private IPs |
-| **Agent Behavioral Risk** | Stateless per request | Persistent cross-session risk scoring (0–100) & automated quarantine |
+| **Agent Behavioral Risk** | Stateless per request | Persistent cross-session risk scoring (0 to 100) & automated quarantine |
 | **Runaway Loop Breaker** | None | Real-time 3-engine detection (Fingerprint, Velocity, Stall) |
 | **Multi-Turn Drift Protection** | Stateless per request | Active containment scoring against initial session anchor ($T_1$) |
 | **Compliance Presets** | None | Out-of-the-box zero-dependency policies for OWASP LLM Top 10, NIST AI RMF 1.0, and EU AI Act |
-| **Tool Blast Radius Scoring** | None | Deterministic risk scoring (0–100) & tier classification on tool verbs, targets, wildcards, and egress |
+| **Tool Blast Radius Scoring** | None | Deterministic risk scoring (0 to 100) & tier classification on tool verbs, targets, wildcards, and egress |
 | **Tool Execution FSM** | None | Stateful tool sequencing (e.g. require dry run before bash execution) |
 | **Human-in-the-Loop Escalation** | None | Suspends live HTTP requests for Redis Pub/Sub approval |
 | **Zero-Storage Pass-Through** | Often caches prompts / logs payloads | Provider keys & payloads stay strictly in-memory (never persisted) |
@@ -120,17 +138,18 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
 
 ### Request Lifecycle
 
-1. **Key Authentication & DPoP Check:** The agent request arrives with a Loopers proxy key (`lp-...`). Loopers verifies the HMAC-SHA256 hash against Redis. If DPoP is configured, proof-of-possession is validated against the sender's public key.
-2. **Quarantine & Risk Profile Gate:** Checks the agent's persistent behavioral risk score. If the score exceeds the quarantine threshold (default: 75), requests are rejected with `403 Forbidden`. If permanently blocked (score > 90), traffic is dropped.
-3. **Layer 3 Syntactic Normalization:** Inbound prompt content is processed through the 5-stage syntactic normalization pipeline (`internal/syntactic`), resolving Unicode homoglyphs (Cyrillic, Greek, Math Bold), stripping zero-width/bidi runes, recursively decoding nested Base64/URL percent escapes, and collapsing delimited tokens (`i.g.n.o.r.e`). Both raw and canonical `normalized_prompt` are exposed to the policy engine.
-4. **Pre-Call Atomic Budget Lease:** Loopers calculates the maximum estimated cost using model rates from `pricing.yaml` and atomically reserves this quota in Redis across minute, hourly, daily, weekly, and monthly sliding windows. If limits are reached, the call is blocked before hitting the provider.
-5. **Inline Context Acceleration & Prefix Canonicalization (Normal Days):** Evaluates multi-turn Ghost Token stubs. On frontier synthesis turns, tail-hydrates raw payloads via `<loopers_hydrated_context>`. Applies deterministic JSON prefix canonicalization (tool schema key sorting, whitespace normalization, timestamp stabilization) to guarantee upstream KV prompt cache hits.
-6. **Smart Fast-Tier Routing (Normal Days):** On cold cache, routes lightweight intermediate verification turns to fast models (e.g. `gpt-4o` -> `gpt-4o-mini`, `deepseek-v4-pro` -> `deepseek-v4.1-flash-1017`). On warm cache, pins the model to maintain the 90% prompt cache read discount.
-7. **Policy Engine & FSM Evaluation (Bad Days):** Evaluates Open Policy Agent (OPA) Rego rules and declarative YAML Policy Cards against canonical normalized inputs. Validates session state transitions, computes multi-turn conversation drift against initial session anchor goals, and checks tool sequences. If an `escalate` policy triggers, Loopers suspends the live HTTP connection and awaits human/admin approval via Redis Pub/Sub.
-8. **Multi-Engine Loop Detection (Bad Days):** Evaluates the request against session history using bi-gram Jaccard similarity, request velocity, and SimHash Hamming distance to detect stuck reasoning or recursive loops.
-9. **Upstream Request Forwarding:** Injects the actual upstream provider key (from `X-Loopers-Provider-Key` or configuration) and forwards the sanitized payload to the LLM provider. The Loopers proxy key is never sent upstream.
-10. **Outbound Semantic DLP & Mid-Stream SSE Cutoff (Bad Days):** As response tokens stream back, Loopers runs a multi-layer DLP inspection to mask PII, redact internal IPs, or sever the connection if secrets are leaked. If a budget cap is breached mid-generation, the SSE stream is cut off immediately.
-11. **Reconciliation & Telemetry:** Reconciles the actual token usage reported by the provider against the estimated lease, releasing unspent funds back to the budget window. Records metrics to Prometheus, spans to OpenTelemetry, and updates the agent's risk profile.
+1. **Key Authentication & DPoP Validation:** Authenticates the proxy key (`lp-...`) via Redis HMAC-SHA256 lookup and verifies RFC 9449 Demonstration of Proof-of-Possession (DPoP) JWT headers against public key thumbprints (`jkt`) with anti-replay tracking.
+2. **Quarantine & Behavioral Risk Gate:** Evaluates the agent's persistent behavioral risk score in Redis. Rejects traffic if quarantined (threshold: 75) or permanently drops the key if risk exceeds the permanent block ceiling (score > 90).
+3. **Sliding-Window Rate Limiting & Concurrency Gate:** Checks per-key sliding window request limits. Under rate-limit contention, live HTTP requests can suspend and escalate for human approval via Redis Pub/Sub.
+4. **Layer 3 Syntactic Normalization & Payload Parsing:** Parses the inbound payload and executes the 5-stage de-obfuscation pipeline (`internal/syntactic`): normalizes Unicode homoglyphs, strips zero-width/bidi runes, decodes recursive Base64/URL percent escapes, and collapses delimited tokens (`i.g.n.o.r.e`).
+5. **Deterministic Policy Engine & FSM Sequencing:** Evaluates Open Policy Agent (OPA) Rego rules and declarative YAML Policy Cards against canonical inputs. Validates tool blast radius scoring, computes multi-turn conversation drift ($T_1$ session anchor), and gates tool sequences via finite state machines. Supports 5 deterministic actions: `allow`, `deny`, `escalate`, `quarantine`, and `transform`.
+6. **Smart Fast-Tier Routing & Prefix Canonicalization:** Evaluates multi-turn cache affinity. On cold discovery turns, remaps queries to fast-tier models (saving up to 94.6% on discovery). On warm cache, pins the model to maintain upstream 90% prompt cache read discounts while applying deterministic JSON key sorting and whitespace collapse.
+7. **Synthesis-Gated Ghost Token Tail-Hydration:** Compresses bulky historical tool returns into compact ~80-token Ghost Stubs. On intermediate turns, stubs remain compact; on frontier synthesis turns, securely decrypts and appends hydrated context to the prompt tail without corrupting upstream KV cache prefixes.
+8. **Pre-Call Atomic Budget Lease:** Computes the maximum estimated cost using model rates from `pricing.yaml` and atomically reserves quota in Redis via Lua scripts across minute, hourly, daily, weekly, and monthly sliding windows with 0% over-charge guarantee.
+9. **Multi-Engine Runaway Loop Detection:** Evaluates session trajectory against history using Bi-Gram Jaccard similarity (Fingerprint), sliding-window velocity limiter (Velocity), and SimHash Hamming distance (Stall).
+10. **Upstream Request Forwarding:** Strips the proxy key, injects the real provider key (from `X-Loopers-Provider-Key` or vault config), and forwards the sanitized request to the upstream LLM provider.
+11. **Outbound Semantic DLP & Mid-Stream SSE Cutoff:** As tokens stream back via Server-Sent Events (SSE), runs chunk-by-chunk DLP to redact PII, internal IPs, and secrets. If a budget cap is reached mid-stream, severs the TCP connection immediately.
+12. **Atomic Settlement & Telemetry:** Reconciles actual token usage from provider completion headers against the estimated lease, atomically releasing unspent funds back to Redis. Emits Prometheus metrics (`/metrics`) and W3C OpenTelemetry distributed traces.
 
 ---
 
@@ -142,7 +161,7 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
   * *Velocity Engine:* Sliding window requests-per-second (RPS) surge limiter.
   * *Stall Engine:* SimHash Hamming distance analysis to catch low-diversity semantic output stalls.
 * **Multi-Turn Conversation Drift Detection & Goal Hijacking Protection:** Defends against gradual crescent context divergence and sudden prompt injection goal hijacks across multi-turn sessions. Persists an immutable session anchor ($T_1$) in Redis and calculates weighted containment similarity ($75\%$ anchor grounding + $25\%$ immediate turn continuity) using trigram FNV-1a hashing and English stopword normalization. Proactively terminates diverged requests locally before token consumption.
-* **Persistent Agent Risk Identity:** Tracks behavioral history across sessions in Redis with cumulative risk scoring (0–100), automated time-bounded quarantines (e.g., 1 hour), taint flags (`secret_accessed`), and risk decay over time.
+* **Persistent Agent Risk Identity:** Tracks behavioral history across sessions in Redis with cumulative risk scoring (0 to 100), automated time-bounded quarantines (e.g., 1 hour), taint flags (`secret_accessed`), and risk decay over time.
 * **Outbound Semantic DLP Gate:** Real-time scrubbing of PII (emails, Luhn-validated credit cards, US SSNs, phone numbers), masking of internal network addresses (RFC 1918 IPs, `.internal` hostnames), and quarantine lockouts on secret leaks (AWS, OpenAI, GitHub tokens, private keys) across both JSON and streaming SSE responses.
 * **Tool Response Sanitization & Injection Wall:** Scans outbound tool responses, normalizes Unicode, strips zero-width obfuscation characters, and blocks path traversal attempts (`../`) and indirect prompt injection patterns.
 * **5-Outcome Policy Action Engine:** Declarative OPA/Rego policy engine supporting five distinct actions: `allow`, `deny`, `escalate` (suspending connection for human approval via Redis Pub/Sub), `quarantine`, and `transform`.
@@ -151,9 +170,11 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
 * **MCP Blast Radius Limiter:** Restricts the maximum number of distinct Model Context Protocol (MCP) servers and tools an agent session can bind to, preventing privilege escalation.
 
 ### Operational Regime 2: Inline Context Acceleration ("Normal Days" Optimization)
-* **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`):** Solves agent context bloat on healthy production traffic. Bulky tool outputs (MCP responses, SQL queries >512 bytes) are encrypted with AES-256-GCM / HKDF and offloaded to local Redis, replacing them with ~80-token Ghost Stubs. Delivers **65% to 75% input token reduction** while dynamically tail-hydrating full raw context on synthesis turns.
-* **Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`):** Normalizes tool schema ordering, stabilizes timestamps, and collapses redundant whitespace to guarantee upstream KV prompt cache hits across OpenAI, Anthropic, and OpenRouter for up to **90% prompt cache read discounts**.
-* **Smart Fast-Tier Model Routing (`internal/server/router.go`):** Dynamically remaps intermediate navigation and tool verification turns to high-speed, cost-effective models while enforcing warm-cache pinning once multi-turn cache affinity is established.
+* **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`):** Solves agent context bloat on healthy production traffic. Bulky tool outputs (MCP responses, SQL queries >512 bytes) are encrypted with AES-256-GCM / HKDF and offloaded to local Redis, replacing them with ~80-token Ghost Stubs. Delivers **65% to 75.8% input token reduction** while dynamically tail-hydrating full raw context on synthesis turns.
+* **Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`):** Normalizes tool schema ordering, stabilizes timestamps, and collapses redundant whitespace to guarantee upstream KV prompt cache hits across OpenAI, Anthropic, and OpenRouter for up to **90% prompt cache read discounts** (77.01% empirical KV hit rate).
+* **Smart Fast-Tier Model Routing (`internal/server/router.go`):** Dynamically remaps cold discovery and verification turns to high-speed models (delivering an immediate **94.6% cost reduction** on cold discovery turns) while enforcing warm-cache pinning once multi-turn cache affinity is established.
+* **Read-Only Tool Memoization (`internal/server/mcp_proxy.go`):** Intercepts repeat read-only MCP tool invocations and serves them from Redis in **3.8 ms** with zero upstream latency and **$0.00** API charges.
+* **Empirical Validation:** Verified across 60 recorded production agent trajectories in our [Normal Traffic FinOps Report](./report_normal_traffic_finops_experiment_2026-10-24T232513.md), achieving a net **68.35% reduction in total enterprise cloud API spend**.
 * **Zero-SDK Session Derivation:** Automatically tracks sessions and trajectories from standard HTTP headers or cryptographic prompt hashing with zero code changes required in agent frameworks.
 
 ### Core Architectural Guarantees
@@ -179,6 +200,9 @@ Loopers includes pre-configured security presets that can be enabled instantly v
 | `pci` | LLM Prompts & Payloads | Enforces PCI-DSS input sanitization by blocking 16-digit credit card numbers, CVV/CVC codes, and SQL injection signatures (`UNION SELECT`, `DROP TABLE`, `OR 1=1`). |
 | `mcp_sandbox` | MCP Tool Invocations | Prevents path traversal (`../`) in filesystem arguments and enforces stateful tool chaining: requires `dry_run_command` to be executed within the last 2 steps before running `execute_bash`. |
 | `zero_trust` | Agent Identity & Risk | Denies LLM and MCP tool access to any agent with a persistent risk score above 75. Automatically escalates `send_email` tool calls to human review if the agent holds a `secret_accessed` taint flag. |
+| `owasp_llm_top10` | Full Agent Pipeline | Comprehensive out-of-the-box coverage for the OWASP Top 10 for LLMs (LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM10 Unbounded Consumption). |
+| `nist_ai_rmf` | Risk Governance | Maps runtime guardrails directly to the NIST AI Risk Management Framework 1.0 (MAP, MEASURE, MANAGE functions). |
+| `eu_ai_act` | Regulatory Compliance | Enforces EU AI Act Article 12 (deterministic record-keeping) and Article 14 (human oversight, emergency circuit breakers) runtime requirements. |
 
 Enable presets on startup:
 ```bash
@@ -333,6 +357,7 @@ Loopers runs an isolated admin server on `:9090` exposing Prometheus metrics at 
 | `loopers_budget_blocks_total` | Counter | Total requests blocked by budget governance per `provider` and `window`. |
 | `loopers_loop_blocks_total` | Counter | Total requests halted by loop detection engines (`fingerprint`, `velocity`, `stall`). |
 | `loopers_spend_usd_total` | Counter | Cumulative USD spend tracked per `provider` and `key_hash`. |
+| `loopers_savings_usd_total` | Counter | Total USD saved via prompt caching and token optimization per `provider` and `key_hash`. |
 | `loopers_dlp_redactions_total` | Counter | Total outbound LLM completions redacted by semantic DLP. |
 | `loopers_dlp_quarantines_total` | Counter | Total agent keys locked out due to secret exfiltration detection. |
 | `loopers_policy_escalations_total` | Counter | Total policy decisions suspended and escalated for human approval. |
@@ -361,7 +386,7 @@ alerting:
     - percent: 50
       message: "Agent budget at 50% capacity"
     - percent: 90
-      message: "Agent budget near exhaustion — cutoff imminent"
+      message: "Agent budget near exhaustion: cutoff imminent"
 ```
 
 ---
@@ -370,7 +395,7 @@ alerting:
 
 Explore our comprehensive guides and architectural documentation:
 
-* **Budget Governance:** [Sliding Budget Windows](./Documentation/docs/concepts/budget-windows.md) | [Per-Session Budgets](./Documentation/docs/concepts/session-budgets.md)
+* **FinOps & Benchmarks:** [Empirical Normal Traffic FinOps Report](./report_normal_traffic_finops_experiment_2026-10-24T232513.md) | [Sliding Budget Windows](./Documentation/docs/concepts/budget-windows.md) | [Per-Session Budgets](./Documentation/docs/concepts/session-budgets.md)
 * **Agent Circuit Breakers:** [Runaway Loop Detection Guide](./Documentation/docs/concepts/agent-loop-detection.md)
 * **Policy Engine & FSM:** [OPA Rego & YAML Policy Cards](./Documentation/docs/guides/policy-engine.md)
 * **Tool Sandboxing:** [Model Context Protocol (MCP) Setup](./Documentation/docs/guides/mcp-setup.md)
