@@ -163,6 +163,29 @@ func screenInit() {
 	}
 
 	yamlLines = append(yamlLines, "")
+	yamlLines = append(yamlLines, "mcp:")
+	yamlLines = append(yamlLines, "  enabled: true")
+	yamlLines = append(yamlLines, "  ghost_tokens:")
+	if enableGhostTokens {
+		yamlLines = append(yamlLines, "    enabled: true")
+		yamlLines = append(yamlLines, "    threshold_bytes: 512")
+		yamlLines = append(yamlLines, "    ttl_seconds: 3600")
+	} else {
+		yamlLines = append(yamlLines, "    enabled: false")
+	}
+	yamlLines = append(yamlLines, "  sanitizer:")
+	if minifySchemas {
+		yamlLines = append(yamlLines, "    minify_schemas: true")
+	} else {
+		yamlLines = append(yamlLines, "    minify_schemas: false")
+	}
+	if memoizeReadOnly {
+		yamlLines = append(yamlLines, "  memoize_read_only: true")
+	} else {
+		yamlLines = append(yamlLines, "  memoize_read_only: false")
+	}
+
+	yamlLines = append(yamlLines, "")
 	yamlLines = append(yamlLines, "ghost_tokens:")
 	if enableGhostTokens {
 		yamlLines = append(yamlLines, "  enabled: true")

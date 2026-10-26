@@ -652,8 +652,9 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 	// Ghost Stub remains in context, preserving ~98% payload compression.
 	ghostSessionID := proxy.ResolveGhostSessionID(earlySessionID, keyHash)
 	if ghostSessionID != "" && rawProxyKey != "" && s.redis != nil {
+		skipHydration := strings.EqualFold(c.GetHeader("X-Loopers-Skip-Hydration"), "true")
 		latestUserPrompt := extractLatestUserPrompt(mutatedBody, promptText)
-		shouldHydrate := s.isFrontierModel(providerName, model) && !isSimpleTurn(latestUserPrompt, driftScore)
+		shouldHydrate := !skipHydration && s.isFrontierModel(providerName, model) && !isSimpleTurn(latestUserPrompt, driftScore)
 		if hydrated, hErr := proxy.HydratePromptTail(
 			c.Request.Context(),
 			keyHash,
@@ -1358,7 +1359,7 @@ func (s *Server) applySmartFinOpsRouting(
 	traceCount int,
 	maxTokensVal *int,
 ) (string, []byte) {
-	if prov == nil {
+	if prov == nil || strings.EqualFold(c.GetHeader("X-Loopers-Force-Frontier"), "true") {
 		return model, mutatedBody
 	}
 

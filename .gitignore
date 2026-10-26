@@ -48,6 +48,8 @@ cmd/mock-mcp/
 report_*.md
 revised_*.md
 Loopers Finops Code Audit Report.md
+final_audit.md
+plan_*.md
 
 # Python
 __pycache__/

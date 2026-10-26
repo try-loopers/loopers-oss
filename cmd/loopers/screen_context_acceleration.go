@@ -12,20 +12,18 @@ import (
 
 func screenContextAcceleration() {
 	ui.PrintLogo()
-	ui.PrintHeader("Context Acceleration & Ghost Tokens (Regime 2)\nSlash multi-turn token costs by 65%–75% with zero quality loss")
+	ui.PrintHeader("Context Acceleration & Ghost Tokens (Regime 2)\nSlash multi-turn token costs by 65% to 75% with zero quality loss")
 	fmt.Println()
 
 	var (
-		ghostEnabled     = true
-		thresholdBytes   = "512"
-		ttlSeconds       = "3600"
-		encryptionSecret = ""
+		ghostEnabled   = true
+		thresholdBytes = "512"
+		ttlSeconds     = "3600"
 
 		minifySchemas   = true
 		memoizeReadOnly = true
 
 		pricingPath = "./pricing.yaml"
-		fastTier    = ""
 	)
 
 	// Attempt to read current loopers.yaml to pre-fill
@@ -37,6 +35,30 @@ func screenContextAcceleration() {
 				pricingPath = pPath
 			}
 
+			// Check canonical mcp.* configuration
+			if mcpRaw, ok := cfg["mcp"].(map[string]interface{}); ok {
+				if gCfg, ok := mcpRaw["ghost_tokens"].(map[string]interface{}); ok {
+					if v, ok := gCfg["enabled"].(bool); ok {
+						ghostEnabled = v
+					}
+					if v, ok := gCfg["threshold_bytes"].(int); ok {
+						thresholdBytes = fmt.Sprintf("%d", v)
+					}
+					if v, ok := gCfg["ttl_seconds"].(int); ok {
+						ttlSeconds = fmt.Sprintf("%d", v)
+					}
+				}
+				if sCfg, ok := mcpRaw["sanitizer"].(map[string]interface{}); ok {
+					if v, ok := sCfg["minify_schemas"].(bool); ok {
+						minifySchemas = v
+					}
+				}
+				if v, ok := mcpRaw["memoize_read_only"].(bool); ok {
+					memoizeReadOnly = v
+				}
+			}
+
+			// Fallback check for root-level config
 			if gCfg, ok := cfg["ghost_tokens"].(map[string]interface{}); ok {
 				if v, ok := gCfg["enabled"].(bool); ok {
 					ghostEnabled = v
@@ -46,9 +68,6 @@ func screenContextAcceleration() {
 				}
 				if v, ok := gCfg["ttl_seconds"].(int); ok {
 					ttlSeconds = fmt.Sprintf("%d", v)
-				}
-				if v, ok := gCfg["encryption_secret"].(string); ok {
-					encryptionSecret = v
 				}
 			}
 
@@ -87,11 +106,6 @@ func screenContextAcceleration() {
 				Title("Cache TTL Seconds (Recommended: 3600)").
 				Description("Retention period for offloaded tool payloads in Redis").
 				Value(&ttlSeconds),
-			huh.NewInput().
-				Title("AES-256-GCM Encryption Secret (Optional)").
-				Description("Leave blank to use environment variable LOOPERS_GHOST_SECRET").
-				EchoMode(huh.EchoModePassword).
-				Value(&encryptionSecret),
 		).Title("Ghost Tokens (Side-Channel Offload)"),
 
 		// Group 2: Tool Sanitization & KV-Cache Maximization
@@ -112,10 +126,6 @@ func screenContextAcceleration() {
 				Title("Pricing File Path (Recommended: ./pricing.yaml)").
 				Description(fastTierInfo).
 				Value(&pricingPath),
-			huh.NewInput().
-				Title("Default Fast-Tier Target Model (Optional)").
-				Description("e.g. gpt-4o-mini, claude-3-5-haiku-20241022, deepseek-v4.1-flash-1017").
-				Value(&fastTier),
 		).Title("Smart Fast-Tier Routing"),
 	).WithTheme(ui.GetHuhTheme()).WithKeyMap(ui.GetHuhKeyMap()).Run()
 
@@ -132,36 +142,39 @@ func screenContextAcceleration() {
 		root = make(map[string]interface{})
 	}
 
-	// Update ghost_tokens
+	// Update mcp canonical block
+	var mcpBlock map[string]interface{}
+	if existingMcp, ok := root["mcp"].(map[string]interface{}); ok {
+		mcpBlock = existingMcp
+	} else {
+		mcpBlock = map[string]interface{}{"enabled": true}
+	}
+
 	ghostBlock := map[string]interface{}{
 		"enabled":         ghostEnabled,
 		"threshold_bytes": parseInt(thresholdBytes),
 		"ttl_seconds":     parseInt(ttlSeconds),
 	}
-	if encryptionSecret != "" {
-		ghostBlock["encryption_secret"] = encryptionSecret
-	} else {
-		if existingG, ok := root["ghost_tokens"].(map[string]interface{}); ok {
-			if secret, ok := existingG["encryption_secret"]; ok {
-				ghostBlock["encryption_secret"] = secret
-			}
-		}
-	}
-	root["ghost_tokens"] = ghostBlock
+	mcpBlock["ghost_tokens"] = ghostBlock
 
-	// Update sanitizer
-	sanitizerBlock := map[string]interface{}{
+	var sanitizerBlock map[string]interface{}
+	if existingSan, ok := mcpBlock["sanitizer"].(map[string]interface{}); ok {
+		sanitizerBlock = existingSan
+	} else {
+		sanitizerBlock = make(map[string]interface{})
+	}
+	sanitizerBlock["minify_schemas"] = minifySchemas
+	mcpBlock["sanitizer"] = sanitizerBlock
+	mcpBlock["memoize_read_only"] = memoizeReadOnly
+
+	root["mcp"] = mcpBlock
+
+	// Maintain root-level compatibility copies
+	root["ghost_tokens"] = ghostBlock
+	root["sanitizer"] = map[string]interface{}{
 		"minify_schemas":    minifySchemas,
 		"memoize_read_only": memoizeReadOnly,
 	}
-	if existingS, ok := root["sanitizer"].(map[string]interface{}); ok {
-		for k, v := range existingS {
-			if k != "minify_schemas" && k != "memoize_read_only" {
-				sanitizerBlock[k] = v
-			}
-		}
-	}
-	root["sanitizer"] = sanitizerBlock
 
 	if pricingPath != "" {
 		root["pricing_path"] = pricingPath

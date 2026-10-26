@@ -129,6 +129,7 @@ func screenMCP() {
 			"minify_schemas":         minifySchemas,
 			"memoize_read_only":      memoizeReadOnly,
 		},
+		"memoize_read_only": memoizeReadOnly,
 	}
 
 	// Also update root sanitizer block
