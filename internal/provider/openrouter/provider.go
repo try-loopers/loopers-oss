@@ -7,6 +7,7 @@ import (
 
 	"github.com/try-loopers/loopers-oss/internal/provider"
 	"github.com/try-loopers/loopers-oss/internal/provider/openai"
+	"github.com/try-loopers/loopers-oss/pkg/api"
 )
 
 type OpenRouterProvider struct {
@@ -20,8 +21,9 @@ func NewOpenRouterProvider() *OpenRouterProvider {
 	}
 }
 
-// Ensure OpenRouterProvider implements provider.Provider.
+// Ensure OpenRouterProvider implements provider.Provider and provider.CacheAwareProvider.
 var _ provider.Provider = (*OpenRouterProvider)(nil)
+var _ provider.CacheAwareProvider = (*OpenRouterProvider)(nil)
 
 func (o *OpenRouterProvider) Name() string {
 	return "openrouter"
@@ -64,6 +66,14 @@ func (o *OpenRouterProvider) ParseStreamChunk(chunk []byte) (inputTokens int, ou
 
 func (o *OpenRouterProvider) ParseNonStreamResponse(body []byte) (inputTokens int, outputTokens int, err error) {
 	return o.openAI.ParseNonStreamResponse(body)
+}
+
+func (o *OpenRouterProvider) ParseNonStreamUsage(body []byte) (api.TokenUsage, error) {
+	return o.openAI.ParseNonStreamUsage(body)
+}
+
+func (o *OpenRouterProvider) ParseStreamChunkUsage(chunk []byte) (api.TokenUsage, bool, error) {
+	return o.openAI.ParseStreamChunkUsage(chunk)
 }
 
 func (o *OpenRouterProvider) FormatBudgetExceededSSE() []byte {

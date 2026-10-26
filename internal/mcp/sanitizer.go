@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 
 	"github.com/try-loopers/loopers-oss/internal/inspector"
@@ -82,6 +83,12 @@ func SanitizeToolList(body []byte, cfg SanitizerConfig, serverName string) ([]by
 				// Strip malicious description entirely
 				toolMap["description"] = "[Description removed due to security policy]"
 			} else {
+				// First-Sentence Compression when MinifySchemas is enabled
+				if cfg.MinifySchemas {
+					if idx := findFirstSentenceBoundary(desc); idx > 0 && idx < len(desc)-1 {
+						desc = strings.TrimSpace(desc[:idx+1])
+					}
+				}
 				// 3. Truncate description if clean
 				if cfg.MaxDescriptionLength > 0 && len(desc) > cfg.MaxDescriptionLength {
 					desc = desc[:cfg.MaxDescriptionLength] + "..."
@@ -90,11 +97,70 @@ func SanitizeToolList(body []byte, cfg SanitizerConfig, serverName string) ([]by
 			}
 		}
 
+		// Property Metadata Stripping when MinifySchemas is enabled
+		if cfg.MinifySchemas {
+			if inputSchema, ok := toolMap["inputSchema"].(map[string]interface{}); ok {
+				cleanSchemaProperties(inputSchema)
+			}
+		}
+
 		sanitizedTools = append(sanitizedTools, toolMap)
+	}
+
+	// 4. Deterministic Tool Sorting
+	if len(sanitizedTools) > 1 {
+		sort.SliceStable(sanitizedTools, func(i, j int) bool {
+			m1, _ := sanitizedTools[i].(map[string]interface{})
+			m2, _ := sanitizedTools[j].(map[string]interface{})
+			n1, _ := m1["name"].(string)
+			n2, _ := m2["name"].(string)
+			return n1 < n2
+		})
 	}
 
 	resultMap["tools"] = sanitizedTools
 	resp["result"] = resultMap
 
 	return json.Marshal(resp)
+}
+
+func findFirstSentenceBoundary(s string) int {
+	for i := 0; i < len(s)-1; i++ {
+		c := s[i]
+		if (c == '.' || c == '!' || c == '?') && (s[i+1] == ' ' || s[i+1] == '\n' || s[i+1] == '\r') {
+			return i
+		}
+		if c == '\n' {
+			return i
+		}
+	}
+	return -1
+}
+
+func cleanSchemaProperties(schema map[string]interface{}) {
+	delete(schema, "$schema")
+	delete(schema, "title")
+	delete(schema, "examples")
+
+	if props, ok := schema["properties"].(map[string]interface{}); ok {
+		for _, v := range props {
+			if propMap, ok := v.(map[string]interface{}); ok {
+				delete(propMap, "title")
+				delete(propMap, "examples")
+				delete(propMap, "$schema")
+				delete(propMap, "default")
+				if pDesc, ok := propMap["description"].(string); ok {
+					if idx := findFirstSentenceBoundary(pDesc); idx > 0 && idx < len(pDesc)-1 {
+						propMap["description"] = strings.TrimSpace(pDesc[:idx+1])
+					}
+				}
+				if _, hasNested := propMap["properties"]; hasNested {
+					cleanSchemaProperties(propMap)
+				}
+				if items, ok := propMap["items"].(map[string]interface{}); ok {
+					cleanSchemaProperties(items)
+				}
+			}
+		}
+	}
 }

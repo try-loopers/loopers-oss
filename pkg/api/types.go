@@ -13,11 +13,22 @@ type ChatCompletionRequest struct {
 	Messages []Message `json:"messages"`
 }
 
-// OpenAIUsage represents the usage object in OpenAI stream chunks.
+// TokenUsage represents unified token usage across providers, including prompt cache breakdown.
+type TokenUsage struct {
+	InputTokens         int `json:"input_tokens"`
+	OutputTokens        int `json:"output_tokens"`
+	CacheReadTokens     int `json:"cache_read_tokens"`     // Discounted reads (0.1x - 0.5x)
+	CacheCreationTokens int `json:"cache_creation_tokens"` // Anthropic cache writes (1.25x)
+}
+
+// OpenAIUsage represents the usage object in OpenAI stream chunks and responses.
 type OpenAIUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	TotalTokens         int `json:"total_tokens"`
+	PromptTokensDetails *struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details,omitempty"`
 }
 
 // OpenAIStreamChunk is the structural representation of an OpenAI stream payload.
@@ -25,10 +36,12 @@ type OpenAIStreamChunk struct {
 	Usage *OpenAIUsage `json:"usage,omitempty"`
 }
 
-// AnthropicUsage represents the usage object in Anthropic stream events.
+// AnthropicUsage represents the usage object in Anthropic stream events and responses.
 type AnthropicUsage struct {
-	InputTokens  int `json:"input_tokens,omitempty"`
-	OutputTokens int `json:"output_tokens,omitempty"`
+	InputTokens              int `json:"input_tokens,omitempty"`
+	OutputTokens             int `json:"output_tokens,omitempty"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 }
 
 // AnthropicMessageStart represents the message_start event payload.

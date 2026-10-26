@@ -12,6 +12,7 @@ import (
 
 	"github.com/try-loopers/loopers-oss/internal/inspector"
 	"github.com/try-loopers/loopers-oss/internal/logging"
+	"github.com/try-loopers/loopers-oss/internal/pricing"
 	"github.com/try-loopers/loopers-oss/internal/provider"
 )
 
@@ -25,6 +26,9 @@ func splitSSEFrames(data []byte, atEOF bool) (advance int, token []byte, err err
 	}
 	return 0, nil, nil
 }
+
+// StreamEndCallback is invoked when an SSE stream finishes or is terminated, reporting final costs and token usage.
+type StreamEndCallback func(actualCost, savedUSD float64, inTokens, outTokens int, completion string, forcedCut bool)
 
 // SSEStreamReader intercepts response content on-the-fly via an io.Pipe.
 type SSEStreamReader struct {
@@ -43,6 +47,29 @@ func NewSSEStreamReader(
 	dlpCfg inspector.DLPConfig,
 	onDLPQuarantine func(),
 ) io.ReadCloser {
+	return NewSSEStreamReaderWithCache(
+		ctx, original, prov, inputPrice, outputPrice, inputPrice*0.5, inputPrice,
+		checkBudget,
+		func(actualCost, savedUSD float64, inTokens, outTokens int, completion string, forcedCut bool) {
+			if onStreamEnd != nil {
+				onStreamEnd(actualCost, inTokens, outTokens, completion, forcedCut)
+			}
+		},
+		dlpCfg, onDLPQuarantine,
+	)
+}
+
+// NewSSEStreamReaderWithCache creates an SSEStreamReader with explicit cache read and cache write pricing.
+func NewSSEStreamReaderWithCache(
+	ctx context.Context,
+	original io.ReadCloser,
+	prov provider.Provider,
+	inputPrice, outputPrice, cacheReadPrice, cacheWritePrice float64,
+	checkBudget func(float64) bool,
+	onStreamEnd StreamEndCallback,
+	dlpCfg inspector.DLPConfig,
+	onDLPQuarantine func(),
+) io.ReadCloser {
 	pr, pw := io.Pipe()
 
 	sr := &SSEStreamReader{
@@ -50,7 +77,7 @@ func NewSSEStreamReader(
 		pipeWriter: pw,
 	}
 
-	go sr.processStream(ctx, original, prov, inputPrice, outputPrice, checkBudget, onStreamEnd, dlpCfg, onDLPQuarantine)
+	go sr.processStream(ctx, original, prov, inputPrice, outputPrice, cacheReadPrice, cacheWritePrice, checkBudget, onStreamEnd, dlpCfg, onDLPQuarantine)
 
 	return sr
 }
@@ -69,9 +96,9 @@ func (sr *SSEStreamReader) processStream(
 	ctx context.Context,
 	original io.ReadCloser,
 	prov provider.Provider,
-	inputPrice, outputPrice float64,
+	inputPrice, outputPrice, cacheReadPrice, cacheWritePrice float64,
 	checkBudget func(float64) bool,
-	onStreamEnd func(float64, int, int, string, bool),
+	onStreamEnd StreamEndCallback,
 	dlpCfg inspector.DLPConfig,
 	onDLPQuarantine func(),
 ) {
@@ -124,14 +151,32 @@ func (sr *SSEStreamReader) processStream(
 
 	var totalInputTokens int
 	var totalOutputTokens int
+	var totalCacheReadTokens int
+	var totalCacheCreationTokens int
 	var accumulatedText string
 	var slidingWindow string
+
+	computeCost := func() (float64, float64) {
+		return pricing.ActualCostWithCache(
+			totalInputTokens,
+			totalOutputTokens,
+			totalCacheReadTokens,
+			totalCacheCreationTokens,
+			inputPrice,
+			outputPrice,
+			cacheReadPrice,
+			cacheWritePrice,
+		)
+	}
+	totalPromptTokens := func() int {
+		return totalInputTokens + totalCacheReadTokens + totalCacheCreationTokens
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			actualUSD := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-			onStreamEnd(actualUSD, totalInputTokens, totalOutputTokens, accumulatedText, false)
+			actualUSD, savedUSD := computeCost()
+			onStreamEnd(actualUSD, savedUSD, totalPromptTokens(), totalOutputTokens, accumulatedText, false)
 			return
 		case chunk, ok := <-chunks:
 			if !ok {
@@ -139,8 +184,8 @@ func (sr *SSEStreamReader) processStream(
 				if err := scanner.Err(); err != nil {
 					logging.Logger.Error().Err(err).Msg("SSE scanner error during read loop")
 				}
-				actualUSD := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-				onStreamEnd(actualUSD, totalInputTokens, totalOutputTokens, accumulatedText, false)
+				actualUSD, savedUSD := computeCost()
+				onStreamEnd(actualUSD, savedUSD, totalPromptTokens(), totalOutputTokens, accumulatedText, false)
 				return
 			}
 
@@ -169,8 +214,8 @@ func (sr *SSEStreamReader) processStream(
 					}
 					// Flush error SSE event to client
 					_, _ = sr.pipeWriter.Write([]byte("event: error\ndata: {\"error\":\"completion blocked by security policy\",\"type\":\"dlp_quarantine\"}\n\n"))
-					actualUSD := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-					onStreamEnd(actualUSD, totalInputTokens, totalOutputTokens, accumulatedText, true)
+					actualUSD, savedUSD := computeCost()
+					onStreamEnd(actualUSD, savedUSD, totalPromptTokens(), totalOutputTokens, accumulatedText, true)
 					return
 				}
 
@@ -183,33 +228,54 @@ func (sr *SSEStreamReader) processStream(
 			// Re-append the double newlines to reconstruct the standard SSE protocol frame
 			outChunk := append(chunk, []byte("\n\n")...)
 
-			inTokens, outTokens, isDone, err := prov.ParseStreamChunk(chunk)
-			if err == nil {
-				if isDone {
-					actualUSD := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-					onStreamEnd(actualUSD, totalInputTokens, totalOutputTokens, accumulatedText, false)
-					_, _ = sr.pipeWriter.Write(outChunk)
-					return
-				}
-
-				if inTokens > 0 {
-					totalInputTokens = inTokens
-				}
-				if outTokens > 0 {
-					totalOutputTokens = outTokens
-				}
-
-				if inTokens > 0 || outTokens > 0 {
-					cost := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-					// Check if we have enough budget
-					if !checkBudget(cost) {
-						// Flush the final chunk containing usage stats that triggered the cutoff.
-						// This ensures accurate client-side tracking before we sever the connection.
-						_, _ = sr.pipeWriter.Write(outChunk)
-						_, _ = sr.pipeWriter.Write(prov.FormatBudgetExceededSSE())
-						onStreamEnd(cost, totalInputTokens, totalOutputTokens, accumulatedText, true)
-						return
+			var isDone bool
+			if cap, ok := prov.(provider.CacheAwareProvider); ok {
+				usage, chunkDone, errUsage := cap.ParseStreamChunkUsage(chunk)
+				if errUsage == nil {
+					isDone = chunkDone
+					if usage.InputTokens > 0 {
+						totalInputTokens = usage.InputTokens
 					}
+					if usage.OutputTokens > 0 {
+						totalOutputTokens = usage.OutputTokens
+					}
+					if usage.CacheReadTokens > 0 {
+						totalCacheReadTokens = usage.CacheReadTokens
+					}
+					if usage.CacheCreationTokens > 0 {
+						totalCacheCreationTokens = usage.CacheCreationTokens
+					}
+				}
+			} else {
+				inTokens, outTokens, chunkDone, errChunk := prov.ParseStreamChunk(chunk)
+				if errChunk == nil {
+					isDone = chunkDone
+					if inTokens > 0 {
+						totalInputTokens = inTokens
+					}
+					if outTokens > 0 {
+						totalOutputTokens = outTokens
+					}
+				}
+			}
+
+			if isDone {
+				actualUSD, savedUSD := computeCost()
+				onStreamEnd(actualUSD, savedUSD, totalPromptTokens(), totalOutputTokens, accumulatedText, false)
+				_, _ = sr.pipeWriter.Write(outChunk)
+				return
+			}
+
+			if totalInputTokens > 0 || totalOutputTokens > 0 || totalCacheReadTokens > 0 || totalCacheCreationTokens > 0 {
+				cost, savedUSD := computeCost()
+				// Check if we have enough budget
+				if !checkBudget(cost) {
+					// Flush the final chunk containing usage stats that triggered the cutoff.
+					// This ensures accurate client-side tracking before we sever the connection.
+					_, _ = sr.pipeWriter.Write(outChunk)
+					_, _ = sr.pipeWriter.Write(prov.FormatBudgetExceededSSE())
+					onStreamEnd(cost, savedUSD, totalPromptTokens(), totalOutputTokens, accumulatedText, true)
+					return
 				}
 			}
 
@@ -241,7 +307,7 @@ func maskTextInChunk(chunk []byte, providerName string, dlpCfg inspector.DLPConf
 	return mutatedJSON
 }
 
-func (sr *SSEStreamReader) processBedrockStream(ctx context.Context, original io.ReadCloser, prov provider.Provider, inputPrice, outputPrice float64, checkBudget func(float64) bool, onStreamEnd func(float64, int, int, string, bool)) {
+func (sr *SSEStreamReader) processBedrockStream(ctx context.Context, original io.ReadCloser, prov provider.Provider, inputPrice, outputPrice float64, checkBudget func(float64) bool, onStreamEnd StreamEndCallback) {
 	var totalInputTokens int
 	var totalOutputTokens int
 	var accumulatedText string
@@ -250,7 +316,7 @@ func (sr *SSEStreamReader) processBedrockStream(ctx context.Context, original io
 		select {
 		case <-ctx.Done():
 			actualUSD := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-			onStreamEnd(actualUSD, totalInputTokens, totalOutputTokens, accumulatedText, false)
+			onStreamEnd(actualUSD, 0, totalInputTokens, totalOutputTokens, accumulatedText, false)
 			return
 		default:
 			// Read one frame of binary event stream
@@ -258,12 +324,12 @@ func (sr *SSEStreamReader) processBedrockStream(ctx context.Context, original io
 			if err != nil {
 				if err == io.EOF {
 					actualUSD := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-					onStreamEnd(actualUSD, totalInputTokens, totalOutputTokens, accumulatedText, false)
+					onStreamEnd(actualUSD, 0, totalInputTokens, totalOutputTokens, accumulatedText, false)
 					return
 				}
 				logging.Logger.Error().Err(err).Msg("Error reading AWS Bedrock EventStream frame")
 				actualUSD := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-				onStreamEnd(actualUSD, totalInputTokens, totalOutputTokens, accumulatedText, true)
+				onStreamEnd(actualUSD, 0, totalInputTokens, totalOutputTokens, accumulatedText, true)
 				return
 			}
 
@@ -284,14 +350,14 @@ func (sr *SSEStreamReader) processBedrockStream(ctx context.Context, original io
 						// before writing the exception frame and stopping.
 						_, _ = sr.pipeWriter.Write(frameBytes)
 						_, _ = sr.pipeWriter.Write(prov.FormatBudgetExceededSSE())
-						onStreamEnd(cost, totalInputTokens, totalOutputTokens, accumulatedText, true)
+						onStreamEnd(cost, 0, totalInputTokens, totalOutputTokens, accumulatedText, true)
 						return
 					}
 				}
 
 				if isDone {
 					actualUSD := (float64(totalInputTokens)*inputPrice + float64(totalOutputTokens)*outputPrice) / 1000000.0
-					onStreamEnd(actualUSD, totalInputTokens, totalOutputTokens, accumulatedText, false)
+					onStreamEnd(actualUSD, 0, totalInputTokens, totalOutputTokens, accumulatedText, false)
 					_, _ = sr.pipeWriter.Write(frameBytes)
 					return
 				}

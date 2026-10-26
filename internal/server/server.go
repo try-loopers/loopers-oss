@@ -56,6 +56,8 @@ const (
 	isStreamCtx        serverContextKey = "IsStream"
 	inputPriceCtx      serverContextKey = "InputPrice"
 	outputPriceCtx     serverContextKey = "OutputPrice"
+	cacheReadPriceCtx  serverContextKey = "CacheReadPrice"
+	cacheWritePriceCtx serverContextKey = "CacheWritePrice"
 	inputTokensCtx     serverContextKey = "InputTokens"
 	sessionIDCtx       serverContextKey = "SessionID"
 	sessionBudgetCtx   serverContextKey = "SessionBudget"
@@ -64,6 +66,8 @@ const (
 	keyNameCtx         serverContextKey = "KeyName"
 	requestIDCtx       serverContextKey = "ProxyRequestID"
 	agentNameCtx       serverContextKey = "AgentName"
+	origInputPriceCtx  serverContextKey = "OrigInputPrice"
+	origOutputPriceCtx serverContextKey = "OrigOutputPrice"
 )
 
 // Server coordinates the proxy operations and HTTP routing.
