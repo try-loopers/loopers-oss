@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.22.3](https://github.com/try-loopers/loopers-oss/compare/v2.22.2...v2.22.3) (2026-10-26)
+
+
+### Bug Fixes
+
+* **security:** override webpack-dev-middleware to 7.4.6 to resolve GHSA-g84c-rxfj-3j2c ([de88d6c](https://github.com/try-loopers/loopers-oss/commit/de88d6cbb283090510ba64c8476a04f8ff81b6e6))
+* **security:** override webpack-dev-middleware to 7.4.6 to resolve GHSA-g84c-rxfj-3j2c ([04b9b2a](https://github.com/try-loopers/loopers-oss/commit/04b9b2ad5e21277032d66ee4901d1476dcca4266))
+
 ## [2.22.2](https://github.com/try-loopers/loopers-oss/compare/v2.22.1...v2.22.2) (2026-10-26)
 
 
