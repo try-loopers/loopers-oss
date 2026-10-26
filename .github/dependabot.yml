@@ -6,6 +6,10 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(deps)"
+    groups:
+      codeql-actions:
+        patterns:
+          - "github/codeql-action*"
 
   - package-ecosystem: "gomod"
     directory: "/"
