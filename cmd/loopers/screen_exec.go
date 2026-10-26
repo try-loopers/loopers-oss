@@ -20,6 +20,8 @@ func screenExec() {
 		provider      = os.Getenv("LOOPERS_PROVIDER")
 		modelMap      = ""
 		modelOverride = ""
+		skipHydration = false
+		forceFrontier = false
 		commandToRun  = ""
 	)
 
@@ -48,6 +50,8 @@ func screenExec() {
 			).Value(&provider),
 			huh.NewInput().Title("Model Map (Optional)").Description("e.g. gpt-4o=google/gemini-2.5-pro").Value(&modelMap),
 			huh.NewInput().Title("Model Override (Optional)").Description("Force specific model").Value(&modelOverride),
+			huh.NewConfirm().Title("Skip Tail Hydration? (Optional)").Description("Keep Ghost stubs unhydrated on intermediate turns").Value(&skipHydration),
+			huh.NewConfirm().Title("Force Frontier Model? (Optional)").Description("Bypass smart fast-tier routing").Value(&forceFrontier),
 			huh.NewInput().Title("Command to Run").Description("e.g. aider, openhands, pi, dsh, or claude").Value(&commandToRun).Validate(func(s string) error {
 				if strings.TrimSpace(s) == "" {
 					return fmt.Errorf("command is required")
@@ -68,6 +72,18 @@ func screenExec() {
 		os.Setenv("LOOPERS_PROVIDER", provider)
 	} else {
 		os.Unsetenv("LOOPERS_PROVIDER")
+	}
+
+	if skipHydration {
+		os.Setenv("LOOPERS_SKIP_HYDRATION", "true")
+	} else {
+		os.Unsetenv("LOOPERS_SKIP_HYDRATION")
+	}
+
+	if forceFrontier {
+		os.Setenv("LOOPERS_FORCE_FRONTIER", "true")
+	} else {
+		os.Unsetenv("LOOPERS_FORCE_FRONTIER")
 	}
 
 	// Set globals for execCmd

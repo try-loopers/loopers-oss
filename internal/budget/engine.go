@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -219,11 +220,30 @@ func (c *Client) reconcileRedis(ctx context.Context, keyHash string, reservedCos
 
 // WindowStatus represents the status of a specific budget window.
 type WindowStatus struct {
-	Limit        float64 // 0 if not configured
-	CurrentSpend float64
+	Limit        float64 `json:"limit"` // 0 if not configured
+	CurrentSpend float64 `json:"current_spend"`
+	SavedUSD     float64 `json:"saved_usd,omitempty"`
 }
 
-// GetBudgetStatus returns the limit and current spend for all 5 windows.
+// RecordSavings increments counterfactual savings across all active windows in Redis.
+func (c *Client) RecordSavings(ctx context.Context, keyHash string, savedUSD float64) error {
+	if savedUSD <= 0 {
+		return nil
+	}
+	now := time.Now().UTC()
+	windows := getWindowConfigs(keyHash, now)
+	pipe := c.rdb.Pipeline()
+	savedNano := ToNano(savedUSD)
+	for _, w := range windows {
+		savedKey := strings.Replace(w.Key, "loopers:spend:", "loopers:saved:", 1)
+		pipe.IncrBy(ctx, savedKey, savedNano)
+		pipe.Expire(ctx, savedKey, time.Duration(w.TTL)*time.Second)
+	}
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// GetBudgetStatus returns the limit, current spend, and counterfactual savings for all 5 windows.
 func (c *Client) GetBudgetStatus(ctx context.Context, keyHash string) (map[string]WindowStatus, error) {
 	now := time.Now().UTC()
 	configKey := fmt.Sprintf("loopers:budget:{%s}:config", keyHash)
@@ -251,9 +271,19 @@ func (c *Client) GetBudgetStatus(ctx context.Context, keyHash string) (map[strin
 			}
 		}
 
+		savedKey := strings.Replace(w.Key, "loopers:spend:", "loopers:saved:", 1)
+		savedStr, _ := c.rdb.Get(ctx, savedKey).Result()
+		var saved float64
+		if savedStr != "" {
+			if savedNano, err := strconv.ParseInt(savedStr, 10, 64); err == nil {
+				saved = FromNano(savedNano)
+			}
+		}
+
 		status[w.Name] = WindowStatus{
 			Limit:        limit,
 			CurrentSpend: spend,
+			SavedUSD:     saved,
 		}
 	}
 

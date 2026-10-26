@@ -201,6 +201,11 @@ providers:
 | `circuit_breaker.window_seconds` | `60` | Time window in seconds for the tool circuit breaker |
 | `sanitizer.max_description_length` | `512` | Max length of a string in a tool response |
 | `sanitizer.tool_allowlist` | `[]` | List of allowed tool names (empty = allow all) |
+| `sanitizer.minify_schemas` | `false` | Enable stateless tool definition minification and description truncation |
+| `memoize_read_only` | `false` | Cache deterministic, read-only MCP tool responses in Redis (Blast Radius `<= 15`) |
+| `ghost_tokens.enabled` | `false` | Enable ephemeral side-channel encrypted offloading of bulky tool results |
+| `ghost_tokens.threshold_bytes` | `8192` | Payload size threshold above which tool results are offloaded as Ghost Stubs |
+| `ghost_tokens.ttl_seconds` | `1800` | Redis time-to-live for encrypted ghost token blobs |
 | `inspector.enabled` | `false` | Enable synchronous tool response inspection (indirect prompt injection and secret leakage protection) |
 | `inspector.quarantine_duration` | `"1h"` | Duration to quarantine an agent key if secrets are detected in a tool response |
 | `inspector.custom_injection_patterns` | `[]` | Operator-defined plain-string patterns to flag as injection attempts |
@@ -233,6 +238,35 @@ providers:
 |---|---|---|
 | `enabled` | `false` | Enable per-key sliding window rate limiting |
 | `requests_per_minute` | `60` | Maximum requests allowed per key per minute |
+
+## Pricing Table Configuration (pricing.yaml)
+
+The `pricing.yaml` file defines model costs, cache read/write discounts, and tier mappings used for Smart FinOps routing:
+
+```yaml
+providers:
+  openai:
+    models:
+      "gpt-4o":
+        input_per_1m: 2.50
+        output_per_1m: 10.00
+        cache_read_per_1m: 1.25
+        tier: "frontier"
+        fast_tier: "gpt-4o-mini"
+      "gpt-4o-mini":
+        input_per_1m: 0.15
+        output_per_1m: 0.60
+        tier: "fast"
+```
+
+| Key | Description |
+|---|---|
+| `input_per_1m` | Cost per 1,000,000 un-cached input tokens in USD |
+| `output_per_1m` | Cost per 1,000,000 output generation tokens in USD |
+| `cache_read_per_1m` | Discounted cost per 1M cached prompt tokens (e.g. Anthropic prompt caching, OpenAI prefix caching) |
+| `cache_write_per_1m` | Cost per 1M prompt tokens written into cache |
+| `tier` | Model tier classification: `"frontier"` (high-reasoning flagship) or `"fast"` (lightweight/low-latency) |
+| `fast_tier` | Target lightweight model identifier used by Smart FinOps routing on simple or intermediate turns |
 
 ## Environment Variable Overrides
 

@@ -22,6 +22,7 @@ const (
 	ProviderCtx         ContextKey = "Provider" // "openai" or "anthropic"
 	ProviderInstanceCtx ContextKey = "ProviderInstance"
 	ProxyKeyHashCtx     ContextKey = "ProxyKeyHash"
+	RawProxyKeyCtx      ContextKey = "RawProxyKey"
 	RequestCostCtx      ContextKey = "RequestCost"
 	ModelCtx            ContextKey = "Model"
 	RequestSignatureCtx ContextKey = "RequestSignature"

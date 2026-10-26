@@ -33,7 +33,23 @@ import Head from '@docusaurus/Head';
           "name": "How does Loopers compare to LiteLLM and Bifrost?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Loopers is built in native Go for infrastructure-level speed, delivering 4,623 req/s throughput with sub-millisecond overhead and 0% budget leakage under concurrency, whereas LiteLLM is a Python gateway with higher latency overhead. Loopers also uniquely provides agent loop circuit breakers and MCP tool-call governance."
+            "text": "Loopers is built in native Go for infrastructure-level speed, delivering 4,623 req/s throughput with sub-millisecond overhead and 0% budget leakage under concurrency, whereas LiteLLM is a Python proxy with higher latency overhead. Loopers uniquely provides agent loop circuit breakers, MCP tool-call governance, and inline context acceleration."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What are the two operational regimes of the Loopers AI Firewall?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Loopers operates across two regimes: Regime 1 provides Rogue Agent Defense ('Bad Days' Protection) by circuit breaking runaway loops, objective drift, and budget spikes. Regime 2 provides Inline Context Acceleration ('Normal Days' Optimization) by offloading bulky tool outputs via Ghost Tokens, canonicalizing prompt prefixes for 90% cache hits, and fast-tier routing to cut everyday spend by 65% to 75%."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What are Ghost Tokens and do they degrade model reasoning?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Ghost Tokens replace oversized tool payloads (>512 bytes) with encrypted cryptographic stubs in the prompt wire while storing the raw payload in ephemeral Redis. On intermediate navigation turns, this slashes input tokens by 65% to 75%. When an agent triggers a complex reasoning or final synthesis turn, Loopers automatically tail-hydrates the raw data, ensuring zero loss in model reasoning or output quality."
           }
         },
         {
@@ -49,7 +65,7 @@ import Head from '@docusaurus/Head';
           "name": "Is Loopers safe for sensitive API keys and data?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. Loopers implements a Zero-Storage Security Model. Your API keys and prompt payloads reside strictly in volatile memory during request proxying and are never persisted to disk or external databases."
+            "text": "Yes. Loopers implements a Zero-Storage Security Model. Your API keys and prompt payloads reside strictly in volatile memory during request proxying and are never persisted to disk or external databases. Ghost token payloads in Redis are encrypted using AES-256-GCM."
           }
         }
       ]
@@ -62,6 +78,31 @@ import Head from '@docusaurus/Head';
 ### What is Loopers?
 
 **Loopers** is an open-source, baremetal, zero-delay firewall for AI agents and LLMs. It operates as a high-performance reverse proxy that sits between your applications/agents and model providers (OpenAI, Anthropic, Gemini, Groq, Bedrock, etc.) or MCP servers. It enforces real-time token budgets, detects and breaks infinite agent loops, and prevents bill shocks like LLMjacking.
+
+---
+
+### What are the two operational regimes of Loopers AI Firewall?
+
+Loopers operates across two distinct regimes to maximize infrastructure safety and minimize costs:
+
+1. **Regime 1: Rogue Agent Defense ("Bad Days" Protection)**: When agents malfunction, enter infinite recursive loops, suffer multi-turn objective drift, or leak credentials, Loopers trips active circuit breakers, clamps budget leases atomically, sanitizes prompt injections, and quarantines malicious agent keys.
+2. **Regime 2: Inline Context Acceleration & Wire Optimization ("Normal Days" Optimization)**: When agents operate completely healthily, accumulating multi-turn tool outputs inevitably inflates prompt tokens and costs. Loopers transparently optimizes the wire:
+   * **Ghost Tokens**: Offloads bulky tool responses (>512 bytes) to ephemeral Redis with AES-256-GCM encryption, replacing them with ~80-token ghost stubs to slash input tokens by **65% to 75%**.
+   * **Deterministic Prefix Canonicalization**: Alphabetizes tool schemas and strips volatile whitespace to guarantee upstream KV-cache hits (up to 90% cache read discounts).
+   * **Fast-Tier Routing**: Directs intermediate verification turns to lightweight models while preserving cache pinning on frontier reasoning turns.
+
+---
+
+### What are Ghost Tokens and does context compression affect response quality?
+
+**No, response quality is not degraded.** 
+
+In multi-turn agent runs, early tool execution outputs (such as large filesystem dumps or database query results) are typically only needed for intermediate steps (e.g. checking status, filtering items). Passing tens of thousands of tokens of raw JSON on every subsequent turn burns unnecessary compute and degrades LLM attention.
+
+Loopers solves this with **Dynamic Prompt Tail-Hydration**:
+* On intermediate turns, the raw payload is replaced with an encrypted cryptographic stub (`lp_ghost_<sha256>`).
+* When the agent reaches a synthesis or reasoning turn requiring deep analysis (`!isSimpleTurn`), Loopers automatically decrypts the original context from Redis and appends it to the prompt tail (`<loopers_hydrated_context>`).
+* The frontier model receives 100% of the raw, uncompressed context exactly when it needs to formulate the final answer, achieving **65%–75% overall spend reduction with zero accuracy degradation**.
 
 ---
 

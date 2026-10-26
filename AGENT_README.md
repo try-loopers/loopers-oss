@@ -23,6 +23,7 @@ Loopers is the bare-metal AI Firewall for the Agentic Era. It is written in Go a
 - **Outbound Semantic DLP Gate**: Intercepts outbound LLM completion bodies across both non-streaming JSON envelopes and SSE streaming chunks. Masking replaces sensitive PII/network tokens with `***` and recalculates Content-Length headers without breaking JSON syntax; quarantine severs the connection with HTTP 403 or error SSE events, registers 1-hour Redis TTL lockouts, and increments persistent risk score (+30).
 - **Sub-150µs ZSP Token Validation**: Ephemeral Agent Delegation JWTs and DPoP (RFC 9449) proofs are verified statelessly in under 150 microseconds.
 - **Fail-Safe Self-Correction**: When an OPA policy blocks an MCP tool call, Loopers returns a valid MCP JSON-RPC 2.0 error object at HTTP 200 (code -32001) with header `X-Loopers-Policy-Block: true`, allowing LLMs to receive the denial as tool output and self-correct instead of crashing on HTTP 403.
+- **Inline Context Acceleration ("Normal Days" Optimization)**: Side-channel Ghost Token offloading (`internal/proxy/ghost.go`) encrypts bulky tool outputs (>512B) with AES-256-GCM / HKDF into Redis and injects ~80-token Ghost Stubs, compressing input tokens by 65%–75% with conditional tail-hydration on frontier synthesis. Deterministic prefix canonicalizer (`internal/proxy/canonicalizer.go`) stabilizes tool schemas and whitespace for 90% prompt cache hits. Smart fast-tier routing maps simple turns to lightweight models while preserving warm-cache pinning.
 - **Shadow Mode**: Set `server.shadow_mode: true` to run the firewall in observation-only mode — logs and records policy violations without blocking traffic. Useful for auditing policies against live workloads before enforcing.
 
 ---
@@ -76,7 +77,7 @@ Loopers is the bare-metal AI Firewall for the Agentic Era. It is written in Go a
 │   │   ├── together/              # Together AI API proxy
 │   │   ├── vllm/                  # vLLM local instance proxy
 │   │   └── xai/                   # xAI Grok API proxy
-│   ├── proxy/                     # Reverse proxy core, SSE streaming token counter & connection severing
+│   ├── proxy/                     # Reverse proxy core, SSE streaming token counter, Ghost Tokens (ghost.go) & Prefix Canonicalizer (canonicalizer.go)
 │   ├── ratelimit/                 # Per-key sliding window rate limiter (atomic Lua)
 │   ├── riskprofile/               # Persistent cross-session agent behavioral risk engine (0-100 scoring, auto-quarantine, permanent block, lazy decay)
 │   ├── server/                    # HTTP server engine, ZSP OIDC JWT & DPoP middleware, PathAuthWrapper (/lp-xxx/), admin router (/metrics)

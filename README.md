@@ -51,9 +51,12 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
 
 | Capability | AI Gateways (LiteLLM, PortKey, OpenRouter) | Loopers AI Firewall |
 |---|---|---|
-| **Primary Focus** | Traffic routing, model aggregation, latency | Security boundaries, budget enforcement, threat termination |
+| **Primary Focus** | Traffic routing, model aggregation, latency | **Dual-Regime:** Rogue threat defense ("Bad Days") + Inline wire acceleration ("Normal Days") |
 | **Budget Enforcement** | Post-request tracking or passive webhook alerts | Pre-call atomic leases with 0% over-charge by design |
 | **Streaming Enforcement** | Passes stream chunks transparently | Active chunk-by-chunk SSE inspection; severs connections mid-stream |
+| **Context Compression (Ghost Tokens)** | None (raw payloads sent to LLM) | Ephemeral AES-256-GCM side-channel offload; **65%–75% input token reduction** |
+| **Prefix Canonicalization** | None | Deterministic tool schema sorting & whitespace normalization for **90% KV cache hits** |
+| **Smart Fast-Tier Routing** | Static fallback on error | Dynamic routing of intermediate turns to fast-tier models with warm-cache pinning |
 | **Syntactic Normalization** | None | 5-stage de-obfuscation (Unicode homoglyphs, invisible runes, base64 decoding, token collapse) |
 | **Outbound DLP Gate** | None | Real-time scanning & redaction of PII, secrets, and private IPs |
 | **Agent Behavioral Risk** | Stateless per request | Persistent cross-session risk scoring (0–100) & automated quarantine |
@@ -80,18 +83,27 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
                                      │ HTTP (e.g., OPENAI_BASE_URL)
                                      ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                        Loopers Firewall (:8080)                          │
+│                        Loopers AI Firewall (:8080)                       │
 │                                                                          │
-│  [1. Key Auth & DPoP] ──► [2. Risk Score & Quarantine Gate]              │
-│            │                                                             │
-│  [3. Syntactic Normalizer] ──► [4. Pre-Call Budget Lease]                │
-│            │                                                             │
-│  [5. Policy Engine & FSM] ──► [6. Multi-Engine Loop Detector]            │
-│            │                                                             │
-│  [7. Upstream Provider Proxy] ──► [8. Outbound DLP & SSE Cutoff]         │
-│            │                                                             │
-│  [9. Cost Reconcile & Risk Update]                                       │
-│                                                                          │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │          REGIME 1: ROGUE AGENT DEFENSE & THREAT MITIGATION           │ │
+│ │                     ("Bad Days" Protection)                          │ │
+│ │  [1. Key Auth & DPoP] ──► [2. Risk Score & Quarantine Gate]          │ │
+│ │  [3. Syntactic Normalizer] ──► [4. Multi-Turn Drift Containment]     │ │
+│ │  [5. Pre-Call Budget Lease] ──► [6. OPA/YAML Policy Engine & FSM]    │ │
+│ │  [7. Multi-Engine Loop Detector] ──► [8. Outbound DLP & SSE Cutoff]  │ │
+│ └──────────────────────────────────────────────────────────────────────┘ │
+│                                    │                                     │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │         REGIME 2: INLINE CONTEXT ACCELERATION & WIRE FINOPS          │ │
+│ │                    ("Normal Days" Optimization)                      │ │
+│ │  [A. Zero-SDK Session Derivation]                                    │ │
+│ │  [B. Ghost Token Offload (Redis AES-256-GCM / HKDF)]                 │ │
+│ │  [C. Dynamic Tail-Hydration (Frontier Synthesis vs Fast-Tier)]       │ │
+│ │  [D. Deterministic Prefix Canonicalizer (KV Cache Maximization)]     │ │
+│ │  [E. Smart Fast-Tier Model Routing & Warm Cache Pinning]             │ │
+│ └──────────────────────────────────────────────────────────────────────┘ │
+│                                    │                                     │
 │  Admin Server (:9090): /metrics (Prometheus) | /health                   │
 │  Telemetry: OpenTelemetry Traces (OTLP gRPC/HTTP) | HMAC Webhooks        │
 └───────────────────┬──────────────────────────────────┬───────────────────┘
@@ -100,8 +112,8 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
           ┌───────────────────┐              ┌───────────────────┐
           │     Redis 7+      │              │ Upstream Provider │
           │ (Atomic Leases,   │              │ (OpenAI, Anthropic│
-          │  Risk Scores,     │              │  Gemini, Bedrock, │
-          │  FSM Session State│              │  Groq, Ollama...) │
+          │  Encrypted Ghosts,│              │  Gemini, Bedrock, │
+          │  FSM Session State│              │  DeepSeek, Groq...)│
           │  Quarantine Keys) │              └───────────────────┘
           └───────────────────┘
 ```
@@ -112,16 +124,19 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
 2. **Quarantine & Risk Profile Gate:** Checks the agent's persistent behavioral risk score. If the score exceeds the quarantine threshold (default: 75), requests are rejected with `403 Forbidden`. If permanently blocked (score > 90), traffic is dropped.
 3. **Layer 3 Syntactic Normalization:** Inbound prompt content is processed through the 5-stage syntactic normalization pipeline (`internal/syntactic`), resolving Unicode homoglyphs (Cyrillic, Greek, Math Bold), stripping zero-width/bidi runes, recursively decoding nested Base64/URL percent escapes, and collapsing delimited tokens (`i.g.n.o.r.e`). Both raw and canonical `normalized_prompt` are exposed to the policy engine.
 4. **Pre-Call Atomic Budget Lease:** Loopers calculates the maximum estimated cost using model rates from `pricing.yaml` and atomically reserves this quota in Redis across minute, hourly, daily, weekly, and monthly sliding windows. If limits are reached, the call is blocked before hitting the provider.
-5. **Policy Engine & FSM Evaluation:** Evaluates Open Policy Agent (OPA) Rego rules and declarative YAML Policy Cards against canonical normalized inputs. Validates session state transitions, computes multi-turn conversation drift against initial session anchor goals, and checks tool sequences. If an `escalate` policy triggers, Loopers suspends the live HTTP connection and awaits human/admin approval via Redis Pub/Sub.
-6. **Multi-Engine Loop Detection:** Evaluates the request against session history using bi-gram Jaccard similarity, request velocity, and SimHash Hamming distance to detect stuck reasoning or recursive loops.
-7. **Upstream Request Forwarding:** Injects the actual upstream provider key (from `X-Loopers-Provider-Key` or configuration) and forwards the sanitized payload to the LLM provider. The Loopers proxy key is never sent upstream.
-8. **Outbound Semantic DLP & Mid-Stream SSE Cutoff:** As response tokens stream back, Loopers runs a multi-layer DLP inspection to mask PII, redact internal IPs, or sever the connection if secrets are leaked. If a budget cap is breached mid-generation, the SSE stream is cut off immediately.
-9. **Reconciliation & Telemetry:** Reconciles the actual token usage reported by the provider against the estimated lease, releasing unspent funds back to the budget window. Records metrics to Prometheus, spans to OpenTelemetry, and updates the agent's risk profile.
+5. **Inline Context Acceleration & Prefix Canonicalization (Normal Days):** Evaluates multi-turn Ghost Token stubs. On frontier synthesis turns, tail-hydrates raw payloads via `<loopers_hydrated_context>`. Applies deterministic JSON prefix canonicalization (tool schema key sorting, whitespace normalization, timestamp stabilization) to guarantee upstream KV prompt cache hits.
+6. **Smart Fast-Tier Routing (Normal Days):** On cold cache, routes lightweight intermediate verification turns to fast models (e.g. `gpt-4o` -> `gpt-4o-mini`, `deepseek-v4-pro` -> `deepseek-v4.1-flash-1017`). On warm cache, pins the model to maintain the 90% prompt cache read discount.
+7. **Policy Engine & FSM Evaluation (Bad Days):** Evaluates Open Policy Agent (OPA) Rego rules and declarative YAML Policy Cards against canonical normalized inputs. Validates session state transitions, computes multi-turn conversation drift against initial session anchor goals, and checks tool sequences. If an `escalate` policy triggers, Loopers suspends the live HTTP connection and awaits human/admin approval via Redis Pub/Sub.
+8. **Multi-Engine Loop Detection (Bad Days):** Evaluates the request against session history using bi-gram Jaccard similarity, request velocity, and SimHash Hamming distance to detect stuck reasoning or recursive loops.
+9. **Upstream Request Forwarding:** Injects the actual upstream provider key (from `X-Loopers-Provider-Key` or configuration) and forwards the sanitized payload to the LLM provider. The Loopers proxy key is never sent upstream.
+10. **Outbound Semantic DLP & Mid-Stream SSE Cutoff (Bad Days):** As response tokens stream back, Loopers runs a multi-layer DLP inspection to mask PII, redact internal IPs, or sever the connection if secrets are leaked. If a budget cap is breached mid-generation, the SSE stream is cut off immediately.
+11. **Reconciliation & Telemetry:** Reconciles the actual token usage reported by the provider against the estimated lease, releasing unspent funds back to the budget window. Records metrics to Prometheus, spans to OpenTelemetry, and updates the agent's risk profile.
 
 ---
 
 ## Core Capabilities
 
+### Operational Regime 1: Rogue Agent Defense ("Bad Days" Protection)
 * **Multi-Engine Runaway Loop Termination:** Detects and terminates repetitive reasoning and execution loops using three distinct algorithms:
   * *Fingerprint Engine:* Bi-Gram Jaccard similarity detection for repetitive prompts.
   * *Velocity Engine:* Sliding window requests-per-second (RPS) surge limiter.
@@ -130,22 +145,26 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
 * **Persistent Agent Risk Identity:** Tracks behavioral history across sessions in Redis with cumulative risk scoring (0–100), automated time-bounded quarantines (e.g., 1 hour), taint flags (`secret_accessed`), and risk decay over time.
 * **Outbound Semantic DLP Gate:** Real-time scrubbing of PII (emails, Luhn-validated credit cards, US SSNs, phone numbers), masking of internal network addresses (RFC 1918 IPs, `.internal` hostnames), and quarantine lockouts on secret leaks (AWS, OpenAI, GitHub tokens, private keys) across both JSON and streaming SSE responses.
 * **Tool Response Sanitization & Injection Wall:** Scans outbound tool responses, normalizes Unicode, strips zero-width obfuscation characters, and blocks path traversal attempts (`../`) and indirect prompt injection patterns.
-* **5-Outcome Policy Action Engine:** Declarative OPA/Rego policy engine supporting five distinct actions:
-  * `allow`: Passes request through to the upstream provider.
-  * `deny`: Rejects the request with a structured error payload.
-  * `escalate`: Suspends live HTTP request and waits up to 60s for external human approval via Redis Pub/Sub.
-  * `quarantine`: Freezes the agent key in Redis across all endpoints for a defined lockout duration.
-  * `transform`: Mutates payload fields (e.g., redactions, parameter replacements) in-flight.
+* **5-Outcome Policy Action Engine:** Declarative OPA/Rego policy engine supporting five distinct actions: `allow`, `deny`, `escalate` (suspending connection for human approval via Redis Pub/Sub), `quarantine`, and `transform`.
 * **Deterministic FSM Tool Sequencing:** Enforces valid state machine transitions on agent tool execution (e.g., requiring `dry_run_command` before allowing destructive `execute_bash` calls).
-* **Atomic Cost Governance:** Multi-window budget limits (minute, hourly, daily, weekly, monthly) enforced atomically with zero budget over-charge guarantee.
 * **Mid-Stream SSE Cutoff:** Actively parses and counts streaming Server-Sent Events (SSE) tokens chunk-by-chunk, severing the HTTP stream mid-flight the millisecond a budget ceiling is reached.
+* **MCP Blast Radius Limiter:** Restricts the maximum number of distinct Model Context Protocol (MCP) servers and tools an agent session can bind to, preventing privilege escalation.
+
+### Operational Regime 2: Inline Context Acceleration ("Normal Days" Optimization)
+* **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`):** Solves agent context bloat on healthy production traffic. Bulky tool outputs (MCP responses, SQL queries >512 bytes) are encrypted with AES-256-GCM / HKDF and offloaded to local Redis, replacing them with ~80-token Ghost Stubs. Delivers **65% to 75% input token reduction** while dynamically tail-hydrating full raw context on synthesis turns.
+* **Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`):** Normalizes tool schema ordering, stabilizes timestamps, and collapses redundant whitespace to guarantee upstream KV prompt cache hits across OpenAI, Anthropic, and OpenRouter for up to **90% prompt cache read discounts**.
+* **Smart Fast-Tier Model Routing (`internal/server/router.go`):** Dynamically remaps intermediate navigation and tool verification turns to high-speed, cost-effective models while enforcing warm-cache pinning once multi-turn cache affinity is established.
+* **Zero-SDK Session Derivation:** Automatically tracks sessions and trajectories from standard HTTP headers or cryptographic prompt hashing with zero code changes required in agent frameworks.
+
+### Core Architectural Guarantees
+* **Atomic Cost Governance:** Multi-window budget limits (minute, hourly, daily, weekly, monthly) enforced atomically via Redis Lua scripts with zero budget over-charge guarantee.
+* **Zero-Storage In-Memory Pass-Through:** Provider keys and raw payloads remain strictly in-memory during transit and are never written to disk or persistent databases.
+* **Fail-Closed by Design:** If Redis or the firewall experiences an outage, Loopers fails closed, immediately preventing unauthorized spend and unshielded egress.
 * **DPoP / Zero-Trust Security Protocol (ZSP):** RFC 9449 Demonstration of Proof-of-Possession for cryptographic agent identity verification, preventing token replay attacks.
 * **Shadow Mode:** Operates the firewall in non-blocking observation mode (`server.shadow_mode: true`) to audit policies against live traffic without impacting production workflows.
-* **MCP Blast Radius Limiter:** Restricts the maximum number of distinct Model Context Protocol (MCP) servers and tools an agent session can bind to, preventing privilege escalation.
 * **Model Overrides & Header Rewriting:** Transparently rewrite models or remap target endpoints on the fly using `X-Loopers-Model-Override` and `X-Loopers-Model-Map` headers without modifying agent codebases.
 * **Offline Trace Verification (`loopers verify`):** Validates past execution trace logs against current policy cards offline, providing verifiable compliance reporting for CI/CD gates.
 * **Self-Correcting Error Payloads:** Returns structured, machine-actionable error messages on policy denials and blocks, allowing autonomous agents to understand the rejection reason and self-correct on subsequent turns.
-* **Zero-Storage In-Memory Pass-Through:** Provider keys and raw payloads remain strictly in-memory during transit and are never written to disk or persistent databases.
 
 ---
 

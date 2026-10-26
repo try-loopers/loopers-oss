@@ -143,8 +143,16 @@ zsp:
 #     - name: "github"
 #       url: "http://localhost:3002"
 #   circuit_breaker:
+#     enabled: true
 #     threshold: 5        # Trip after 5 similar tool calls (SimHash fuzzy match)
 #     window_seconds: 60  # Within a 60-second window
 #   sanitizer:
 #     max_description_length: 512
-#     tool_allowlist: []  # Empty = allow all tools
+#     minify_schemas: true        # Stateless schema compression & metadata pruning
+#     tool_allowlist: []          # Empty = allow all tools
+#   memoize_read_only: true       # Cache read-only blast-radius safe tools (Score <= 15)
+#   ghost_tokens:
+#     enabled: true               # Ephemeral encrypted offloading of large tool results
+#     threshold_bytes: 8192       # Offload payloads exceeding 8KB
+#     ttl_seconds: 1800           # 30-minute Redis TTL
+

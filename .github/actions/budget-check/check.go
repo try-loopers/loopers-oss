@@ -10,8 +10,9 @@ import (
 )
 
 type WindowStatus struct {
-	Limit        float64 `json:"Limit"`
-	CurrentSpend float64 `json:"CurrentSpend"`
+	Limit        float64 `json:"limit"`
+	CurrentSpend float64 `json:"current_spend"`
+	SavedUSD     float64 `json:"saved_usd,omitempty"`
 }
 
 func main() {

@@ -139,6 +139,7 @@ func KeyExtractor(jwks *keyring.JWKSValidator) gin.HandlerFunc {
 		}
 
 		if proxyKey != "" {
+			c.Set("ProxyKey", proxyKey)
 			// A valid JWT has exactly two dots (Header.Payload.Signature)
 			if jwks != nil && strings.Count(proxyKey, ".") == 2 {
 				meta, err := jwks.ValidateJWT(c.Request.Context(), proxyKey)

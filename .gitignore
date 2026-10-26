@@ -2,6 +2,8 @@
 legal/
 legal/agreement_founder_separation_and_ip_assignment_2026-09-24T200316.md
 plan_*.md
+plan to upgrade loopers-oss.md
+plan*.md
 research_high_converting_readme_2026-08-15T202455.md
 task_rewrite_readme_2026-08-15T201731.md
 task_streamlined_readme_2026-08-15T202836.md
@@ -39,6 +41,13 @@ test_output.txt
 test-config.yaml
 runs.json
 policies/
+run_cohort*.py
+cohort*.csv
+Dockerfile.mcp
+cmd/mock-mcp/
+report_*.md
+revised_*.md
+Loopers Finops Code Audit Report.md
 
 # Python
 __pycache__/
