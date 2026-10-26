@@ -32,17 +32,17 @@
 
 Every enterprise running autonomous agents faces two distinct operational regimes, and existing tools fail at both:
 
-### Regime 1: Normal Days - Silent Context Bloat & Crushing Cloud Bills
-Even when autonomous agents execute tasks correctly with zero errors, multi-turn tool calling is mathematically broken:
-* **70% to 80% of context is repetitive baggage**: Agents repeatedly drag massive historical tool responses (bulky MCP JSON schemas, database query dumps, file reads) into every subsequent turn. Teams repeatedly pay to transmit the exact same megabytes back and forth.
-* **Frontier Model Over-Provisioning**: Simple intermediate exploration steps (triage, reading docs, formatting) are needlessly executed on expensive frontier models ($0.20 to $5.00/1M tokens) instead of fast-tier models.
-* **The Impact**: Production agent deployments burn through thousands of dollars on completely normal, error-free days.
-
-### Regime 2: Bad Days - Runaway Loops, Data Exfiltration & Silent Budget Exhaustion
+### Regime 1: Bad Days - Runaway Loops, Data Exfiltration & Silent Budget Exhaustion
 When autonomous agents fail, they fail silently, recursively, and catastrophically:
 * **Runaway Loops & Reasoning Stalls**: A single stuck retry loop or recursive reasoning stall can burn hundreds of dollars in API credits within minutes. Upstream provider dashboards only provide post-hoc alerts hours after the bill has hit your card.
 * **Tool Poisoning & Data Exfiltration**: Untrusted web scraping or poisoned MCP tool responses turn agents into exfiltration vectors, leaking internal credentials, secrets, and customer PII back to untrusted endpoints.
 * **Prompt-Based Safety Fails**: Relying on system prompts for security boundaries fails under prompt injections, jailbreaks, or long-context drift.
+
+### Regime 2: Normal Days - Silent Context Bloat & Crushing Cloud Bills
+Even when autonomous agents execute tasks correctly with zero errors, multi-turn tool calling is mathematically broken:
+* **70% to 80% of context is repetitive baggage**: Agents repeatedly drag massive historical tool responses (bulky MCP JSON schemas, database query dumps, file reads) into every subsequent turn. Teams repeatedly pay to transmit the exact same megabytes back and forth.
+* **Frontier Model Over-Provisioning**: Simple intermediate exploration steps (triage, reading docs, formatting) are needlessly executed on expensive frontier models ($0.20 to $5.00/1M tokens) instead of fast-tier models.
+* **The Impact**: Production agent deployments burn through thousands of dollars on completely normal, error-free days.
 
 Loopers sits at the network wire as an active, inline proxy that solves **both regimes simultaneously**: cutting everyday cloud bills by up to **68.35%** on normal days, while enforcing strict **0% over-charge** circuit breakers and policy governance on bad days.
 
@@ -63,7 +63,7 @@ Have questions, suggestions, or need help integrating? Join the community on [Gi
 ## What Loopers Is and Is Not
 
 Loopers is a **stateful, runtime security firewall** for autonomous AI agents.  
-It is **not** an AI gateway, model router, prompt management platform, or agent orchestration framework.
+It is **not** an AI gateway, passive API wrapper or multi-provider aggregator, prompt management platform, or agent orchestration framework.
 
 ### The Firewall Difference
 
@@ -143,8 +143,8 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
 3. **Sliding-Window Rate Limiting & Concurrency Gate:** Checks per-key sliding window request limits. Under rate-limit contention, live HTTP requests can suspend and escalate for human approval via Redis Pub/Sub.
 4. **Layer 3 Syntactic Normalization & Payload Parsing:** Parses the inbound payload and executes the 5-stage de-obfuscation pipeline (`internal/syntactic`): normalizes Unicode homoglyphs, strips zero-width/bidi runes, decodes recursive Base64/URL percent escapes, and collapses delimited tokens (`i.g.n.o.r.e`).
 5. **Deterministic Policy Engine & FSM Sequencing:** Evaluates Open Policy Agent (OPA) Rego rules and declarative YAML Policy Cards against canonical inputs. Validates tool blast radius scoring, computes multi-turn conversation drift ($T_1$ session anchor), and gates tool sequences via finite state machines. Supports 5 deterministic actions: `allow`, `deny`, `escalate`, `quarantine`, and `transform`.
-6. **Smart Fast-Tier Routing & Prefix Canonicalization:** Evaluates multi-turn cache affinity. On cold discovery turns, remaps queries to fast-tier models (saving up to 94.6% on discovery). On warm cache, pins the model to maintain upstream 90% prompt cache read discounts while applying deterministic JSON key sorting and whitespace collapse.
-7. **Synthesis-Gated Ghost Token Tail-Hydration:** Compresses bulky historical tool returns into compact ~80-token Ghost Stubs. On intermediate turns, stubs remain compact; on frontier synthesis turns, securely decrypts and appends hydrated context to the prompt tail without corrupting upstream KV cache prefixes.
+6. **Smart Fast-Tier Routing & Synthesis-Gated Tail-Hydration:** Evaluates multi-turn cache affinity. On cold discovery turns, remaps queries to fast-tier models (saving up to 94.6% on discovery). On synthesis turns, securely decrypts and appends hydrated context to the prompt tail without corrupting upstream KV cache prefixes.
+7. **Deterministic Prefix Canonicalization:** Normalizes tool schema ordering, stabilizes system anchors, and collapses JSON whitespace to guarantee upstream KV prompt cache hits across Anthropic, OpenAI, and OpenRouter for up to 90% prompt cache read discounts.
 8. **Pre-Call Atomic Budget Lease:** Computes the maximum estimated cost using model rates from `pricing.yaml` and atomically reserves quota in Redis via Lua scripts across minute, hourly, daily, weekly, and monthly sliding windows with 0% over-charge guarantee.
 9. **Multi-Engine Runaway Loop Detection:** Evaluates session trajectory against history using Bi-Gram Jaccard similarity (Fingerprint), sliding-window velocity limiter (Velocity), and SimHash Hamming distance (Stall).
 10. **Upstream Request Forwarding:** Strips the proxy key, injects the real provider key (from `X-Loopers-Provider-Key` or vault config), and forwards the sanitized request to the upstream LLM provider.
@@ -170,11 +170,11 @@ It is **not** an AI gateway, model router, prompt management platform, or agent 
 * **MCP Blast Radius Limiter:** Restricts the maximum number of distinct Model Context Protocol (MCP) servers and tools an agent session can bind to, preventing privilege escalation.
 
 ### Operational Regime 2: Inline Context Acceleration ("Normal Days" Optimization)
-* **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`):** Solves agent context bloat on healthy production traffic. Bulky tool outputs (MCP responses, SQL queries >512 bytes) are encrypted with AES-256-GCM / HKDF and offloaded to local Redis, replacing them with ~80-token Ghost Stubs. Delivers **65% to 75.8% input token reduction** while dynamically tail-hydrating full raw context on synthesis turns.
+* **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`):** Solves agent context bloat on healthy production traffic. Bulky tool outputs (MCP responses, SQL queries > configurable threshold from 512 B to 8 KB) are encrypted with AES-256-GCM / HKDF and offloaded to local Redis, replacing them with ~80-token Ghost Stubs. Delivers **65% to 75.8% input token reduction** while dynamically tail-hydrating full raw context on synthesis turns.
 * **Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`):** Normalizes tool schema ordering, stabilizes timestamps, and collapses redundant whitespace to guarantee upstream KV prompt cache hits across OpenAI, Anthropic, and OpenRouter for up to **90% prompt cache read discounts** (77.01% empirical KV hit rate).
 * **Smart Fast-Tier Model Routing (`internal/server/router.go`):** Dynamically remaps cold discovery and verification turns to high-speed models (delivering an immediate **94.6% cost reduction** on cold discovery turns) while enforcing warm-cache pinning once multi-turn cache affinity is established.
-* **Read-Only Tool Memoization (`internal/server/mcp_proxy.go`):** Intercepts repeat read-only MCP tool invocations and serves them from Redis in **3.8 ms** with zero upstream latency and **$0.00** API charges.
-* **Empirical Validation:** Verified across 60 recorded production agent trajectories in our [Normal Traffic FinOps Report](./report_normal_traffic_finops_experiment_2026-10-24T232513.md), achieving a net **68.35% reduction in total enterprise cloud API spend**.
+* **Read-Only Tool Memoization (`internal/mcp/handler.go`):** Intercepts repeat read-only MCP tool invocations and serves them from Redis in **3.8 ms** with zero upstream latency and **$0.00** API charges.
+* **Empirical Validation:** Benchmarked across 60 multi-turn production agent workloads, achieving a net **68.35% reduction in total enterprise cloud API spend** across combined context compression, KV cache maximization, and fast-tier routing.
 * **Zero-SDK Session Derivation:** Automatically tracks sessions and trajectories from standard HTTP headers or cryptographic prompt hashing with zero code changes required in agent frameworks.
 
 ### Core Architectural Guarantees
@@ -395,7 +395,7 @@ alerting:
 
 Explore our comprehensive guides and architectural documentation:
 
-* **FinOps & Benchmarks:** [Empirical Normal Traffic FinOps Report](./report_normal_traffic_finops_experiment_2026-10-24T232513.md) | [Sliding Budget Windows](./Documentation/docs/concepts/budget-windows.md) | [Per-Session Budgets](./Documentation/docs/concepts/session-budgets.md)
+* **FinOps & Budget Controls:** [Context Acceleration & Ghost Tokens](./Documentation/docs/concepts/context-acceleration.md) | [Sliding Budget Windows](./Documentation/docs/concepts/budget-windows.md) | [Per-Session Budgets](./Documentation/docs/concepts/session-budgets.md)
 * **Agent Circuit Breakers:** [Runaway Loop Detection Guide](./Documentation/docs/concepts/agent-loop-detection.md)
 * **Policy Engine & FSM:** [OPA Rego & YAML Policy Cards](./Documentation/docs/guides/policy-engine.md)
 * **Tool Sandboxing:** [Model Context Protocol (MCP) Setup](./Documentation/docs/guides/mcp-setup.md)

@@ -1,4 +1,4 @@
-# Loopers OSS – Complete Technical Context for AI Agents
+# Loopers OSS - Complete Technical Context for AI Agents
 
 This file contains everything an AI agent needs to understand, set up, and integrate Loopers OSS from scratch. It is sourced directly from the codebase and documentation.
 
@@ -6,7 +6,7 @@ This file contains everything an AI agent needs to understand, set up, and integ
 
 ## What Loopers Is
 
-Loopers is the open-source, bare-metal AI Firewall for the Agentic Era written in Go. It sits between your application and upstream LLM providers (OpenAI, Anthropic, Gemini, Groq, Bedrock, Azure OpenAI, Mistral, Cohere, DeepSeek, Together, Ollama, Fireworks, xAI, vLLM, OpenRouter) and enforces pre-call budget limits, runaway loop termination, MCP tool response inspection, persistent agent risk scoring, and real-time outbound semantic DLP redaction — all before forwarding requests upstream.
+Loopers is the open-source, bare-metal AI Firewall for the Agentic Era written in Go. It sits between your application and upstream LLM providers (OpenAI, Anthropic, Gemini, Groq, Bedrock, Azure OpenAI, Mistral, Cohere, DeepSeek, Together, Ollama, Fireworks, xAI, vLLM, OpenRouter) and enforces pre-call budget limits, runaway loop termination, MCP tool response inspection, persistent agent risk scoring, and real-time outbound semantic DLP redaction  -  all before forwarding requests upstream.
 
 **Core guarantee:** If Redis is unavailable, Loopers fails closed. No requests pass through. This prevents unbounded spending during infrastructure failures.
 
@@ -14,9 +14,9 @@ Loopers is the open-source, bare-metal AI Firewall for the Agentic Era written i
 
 ## Prerequisites
 
-- Go 1.26.6+ (toolchain go1.26.6) — required for native installation
-- Redis 7+ — required for all deployments (used for atomic budget reservation)
-- Docker + Docker Compose — recommended for running Redis locally
+- Go 1.26.6+ (toolchain go1.26.6)  -  required for native installation
+- Redis 7+  -  required for all deployments (used for atomic budget reservation)
+- Docker + Docker Compose  -  recommended for running Redis locally
 
 ---
 
@@ -34,14 +34,14 @@ docker-compose up -d
 ```
 
 The `docker-compose.yml` in the root starts two services:
-- `redis` — Redis 8 Alpine with password auth
-- `loopers` — the firewall image (`ghcr.io/try-loopers/loopers:latest`) on port 8080
+- `redis`  -  Redis 8 Alpine with password auth
+- `loopers`  -  the firewall image (`ghcr.io/try-loopers/loopers:latest`) on port 8080
 
 ### Step 3: Create a proxy key
 ```bash
 docker-compose exec loopers /app/loopers keys create --name mykey --provider openai
 ```
-This returns a raw key (`lp-xxx`) and a hash. The raw key is only shown once — save it immediately.
+This returns a raw key (`lp-xxx`) and a hash. The raw key is only shown once  -  save it immediately.
 
 ### Step 4: Set a budget
 ```bash
@@ -166,13 +166,13 @@ loopers doctor
 loopers keys create --name <name> --provider <provider> [flags]
 ```
 Flags:
-- `--name string` (required) — name for the key
-- `--provider string` (required) — one of: `openai`, `anthropic`, `gemini`, `bedrock`, `azure`, `mistral`, `groq`, `cohere`, `deepseek`, `together`, `ollama`, `fireworks`, `xai`, `vllm`, `openrouter`
-- `--agent-name string` — agent identity for policy evaluation
-- `--owner string` — owner identity for policy evaluation
-- `--allowed-tools string` — comma-separated list of allowed MCP tools
-- `--allowed-providers string` — comma-separated list of allowed providers
-- `--tags string` — comma-separated `key=value` tags (e.g. `env=prod,team=alpha`)
+- `--name string` (required)  -  name for the key
+- `--provider string` (required)  -  one of: `openai`, `anthropic`, `gemini`, `bedrock`, `azure`, `mistral`, `groq`, `cohere`, `deepseek`, `together`, `ollama`, `fireworks`, `xai`, `vllm`, `openrouter`
+- `--agent-name string`  -  agent identity for policy evaluation
+- `--owner string`  -  owner identity for policy evaluation
+- `--allowed-tools string`  -  comma-separated list of allowed MCP tools
+- `--allowed-providers string`  -  comma-separated list of allowed providers
+- `--tags string`  -  comma-separated `key=value` tags (e.g. `env=prod,team=alpha`)
 
 ### loopers keys list
 ```bash
@@ -202,16 +202,16 @@ loopers exec [--model-override string] [--model-map string] -- <command>
 ```
 
 Required environment variables:
-- `LOOPERS_PROXY_KEY` — your proxy key (`lp-xxx`)
-- `LOOPERS_PROVIDER` — upstream provider (e.g. `openai`, `anthropic`, `openrouter`). Auto-detected from executable name for `aider` (openai), `openhands` (openai), `pi` (openai), `claude` (anthropic), `gemini` (gemini), `codex` (openai), `opencode` (openai), `dsh` (deepseek), `deepseek-harness` (deepseek), `deepseek` (deepseek). Must be set explicitly for all other tools.
+- `LOOPERS_PROXY_KEY`  -  your proxy key (`lp-xxx`)
+- `LOOPERS_PROVIDER`  -  upstream provider (e.g. `openai`, `anthropic`, `openrouter`). Auto-detected from executable name for `aider` (openai), `openhands` (openai), `pi` (openai), `claude` (anthropic), `gemini` (gemini), `codex` (openai), `opencode` (openai), `dsh` (deepseek), `deepseek-harness` (deepseek), `deepseek` (deepseek). Must be set explicitly for all other tools.
 
 Optional flags:
-- `--model-override <model>` — force all requests to use a specific model (e.g. `google/gemma-2-9b-it:free`)
-- `--model-map <alias=model,...>` — remap model aliases (e.g. `gpt-4o=google/gemini-2.5-pro`)
+- `--model-override <model>`  -  force all requests to use a specific model (e.g. `google/gemma-2-9b-it:free`)
+- `--model-map <alias=model,...>`  -  remap model aliases (e.g. `gpt-4o=google/gemini-2.5-pro`)
 
 Examples:
 
-macOS / Linux — route opencode through OpenRouter:
+macOS / Linux  -  route opencode through OpenRouter:
 ```bash
 export OPENAI_API_KEY="sk-or-v1-YOUR_KEY"
 export LOOPERS_PROXY_KEY="lp-xxx"
@@ -233,12 +233,12 @@ Audits and replays recorded session execution traces offline against declarative
 loopers verify --trace <path-to-trace.json> [flags]
 ```
 Flags:
-- `--trace string` (required) — path to execution trace JSON file to verify
-- `--policy-file string` — path to declarative YAML Policy Card
-- `--policy-dir string` — directory containing custom Rego files
-- `--presets strings` — built-in templates to enable (`safety`, `pci`, `mcp_sandbox`)
-- `--format string` — output format: `pretty` (terminal table) or `json`
-- `--fail-on-violation` — exit with code 1 if violations are found (default: true)
+- `--trace string` (required)  -  path to execution trace JSON file to verify
+- `--policy-file string`  -  path to declarative YAML Policy Card
+- `--policy-dir string`  -  directory containing custom Rego files
+- `--presets strings`  -  built-in templates to enable (`safety`, `pci`, `mcp_sandbox`)
+- `--format string`  -  output format: `pretty` (terminal table) or `json`
+- `--fail-on-violation`  -  exit with code 1 if violations are found (default: true)
 
 ---
 
@@ -401,7 +401,7 @@ LOG_LEVEL            overrides server.log_level
 | 429 | `budget_exceeded` | Budget window limit reached |
 | 429 | `loop_detected` | Agent loop detected in session |
 | 429 | `max_steps_exceeded` | Session max steps reached |
-| 503 | `redis_unavailable` | Redis offline — all requests blocked (fail-closed) |
+| 503 | `redis_unavailable` | Redis offline  -  all requests blocked (fail-closed) |
 
 ---
 
@@ -513,7 +513,7 @@ When `mcp.inspector.enabled: true` in `loopers.yaml`, Loopers intercepts and ins
 
 Loopers maintains a cross-session behavioral risk profile anchored to the agent's key hash in Redis (`loopers:risk_profile:{keyHash}`).
 
-### Deterministic Risk Scoring (0–100)
+### Deterministic Risk Scoring (0-100)
 - **`+10`**: Policy block (`deny`)
 - **`+25`**: Quarantine action triggered (`quarantine`)
 - **`+15`**: Escalation action triggered (`escalate`)
@@ -659,15 +659,65 @@ Loopers embeds a deterministic, sub-10µs risk scoring engine (`internal/blastra
 - **Read-Only Mitigation (-10 pts):** Pure inspection and search tools without mutating markers.
 
 ### 2. Risk Tiers
-- **`low` (0–29):** Safe read-only inspections, localized directory listings, documentation searches.
-- **`medium` (30–59):** Single resource write/update operations, non-destructive API mutations.
-- **`high` (60–84):** Broad file mutations, OS script execution, external egress dispatches.
-- **`critical` (85–100):** Destructive database purges, IAM role deletions, recursive root removals, financial wire transfers.
+- **`low` (0-29):** Safe read-only inspections, localized directory listings, documentation searches.
+- **`medium` (30-59):** Single resource write/update operations, non-destructive API mutations.
+- **`high` (60-84):** Broad file mutations, OS script execution, external egress dispatches.
+- **`critical` (85-100):** Destructive database purges, IAM role deletions, recursive root removals, financial wire transfers.
 
 ### 3. Policy Plane Integration
 - Injected into OPA/Rego input as `input.action.blast_radius`, `input.action.blast_radius_tier`, and `input.action.blast_radius_reasons`.
 - Used in Declarative YAML Policy Cards via `field: action.blast_radius, op: greater_than, value: 60` or `field: action.blast_radius_tier, op: equals, value: "critical"`.
 - Built-in `mcp_sandbox` preset automatically escalates tool calls >60 and blocks critical executions (>=85).
+
+---
+
+## Regime 2: Inline Context Acceleration & Ghost Tokens
+
+In addition to Regime 1 (Rogue Agent Defense), Loopers provides inline wire acceleration to cut input token spend by 65% to 75% on healthy multi-turn agent traffic:
+
+### 1. Ghost Tokens Side-Channel Offload (`internal/proxy/ghost.go`)
+- Bulky tool execution payloads (configurable threshold 512 B to 8 KB) on the outbound MCP path (`internal/mcp/handler.go`) are encrypted via AES-256-GCM (keys derived ephemerally per request via HKDF-SHA256 from proxy key and session ID) and offloaded to Redis at `loopers:blob:{keyHash}:{sessionID}:{blobID}`.
+- Replaced on the wire with an ~80-token JSON stub:
+```json
+{
+  "_loopers_ref": "loopers:blob:7f83b1657ff1fc53",
+  "tool": "read_file",
+  "original_bytes": 15360,
+  "est_tokens_saved": 3840,
+  "structure": {"type": "file", "extension": "go"},
+  "preview": "package main\n..."
+}
+```
+
+### 2. Dynamic Prompt Tail-Hydration (`HydratePromptTail`)
+- On intermediate exploration turns, compressed stubs remain in context.
+- When an agent reaches a synthesis or reasoning turn (`!isSimpleTurn`), Loopers decrypts the required blobs from Redis in volatile memory and appends them to the prompt tail in `<loopers_hydrated_context>` without modifying prefix cache anchors.
+
+### 3. Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`)
+- Sorts tool schemas alphabetically by key, stabilizes timestamps, and collapses redundant JSON whitespace.
+- Elevates upstream KV prompt cache hits to 85% to 90%, capturing provider cache read discounts (50% to 90% discount on cached prompt tokens).
+
+### 4. Smart Fast-Tier Model Routing (`internal/server/router.go`)
+- Evaluates multi-turn cache affinity. On cold discovery turns, routes queries to high-speed models configured in `pricing.yaml` (saving up to 94.6% on discovery). On warm cache, pins the frontier model to preserve provider KV cache read discounts.
+- Caps intermediate output tokens to `max_tokens: 1024` on verification steps.
+
+### 5. Read-Only Tool Memoization (`internal/mcp/handler.go`)
+- Intercepts idempotent read-only MCP tool invocations and serves repeat calls directly from Redis cache in 3.8 ms with zero upstream latency and $0.00 API charges.
+
+### Configuration Reference (`loopers.yaml`)
+```yaml
+mcp:
+  enabled: true
+  ghost_tokens:
+    enabled: true
+    threshold_bytes: 8192
+    ttl_seconds: 3600
+  sanitizer:
+    minify_schemas: true
+  memoize_read_only: true
+
+pricing_path: "./pricing.yaml"
+```
 
 ---
 

@@ -8,28 +8,28 @@ Loopers is a Go binary that proxies and secures AI API calls. Requests from your
 
 **Auth models (two options):**
 1. Header auth: Set `Authorization: Bearer lp-xxx` (Loopers proxy key) + `X-Loopers-Provider-Key: YOUR_REAL_KEY`
-2. Path auth (zero-code): Embed proxy key in URL — `http://localhost:8080/lp-xxx/openai/v1/chat/completions` — and pass real key as standard `Authorization: Bearer`
+2. Path auth (zero-code): Embed proxy key in URL  -  `http://localhost:8080/lp-xxx/openai/v1/chat/completions`  -  and pass real key as standard `Authorization: Bearer`
 
 **Key environment variables:**
-- `SERVER_INSECURE_DEV=true` — required for local dev without TLS certificates
-- `SERVER_SHADOW_MODE=true` — run in observation-only mode; logs policy violations without blocking
-- `REDIS_ADDR` — Redis address (default: `localhost:6379`)
-- `REDIS_PASSWORD` — Redis password
-- `SERVER_PORT` — proxy port (default: `8080`)
-- `LOOPERS_PROXY_KEY` — used by `loopers exec` to inject proxy key into child process
-- `LOOPERS_PROVIDER` — used by `loopers exec` to specify upstream provider (e.g. `openai`, `anthropic`, `openrouter`). Auto-detected for aider, openhands, pi, claude, gemini, codex, opencode, dsh, deepseek-harness, deepseek.
+- `SERVER_INSECURE_DEV=true`  -  required for local dev without TLS certificates
+- `SERVER_SHADOW_MODE=true`  -  run in observation-only mode; logs policy violations without blocking
+- `REDIS_ADDR`  -  Redis address (default: `localhost:6379`)
+- `REDIS_PASSWORD`  -  Redis password
+- `SERVER_PORT`  -  proxy port (default: `8080`)
+- `LOOPERS_PROXY_KEY`  -  used by `loopers exec` to inject proxy key into child process
+- `LOOPERS_PROVIDER`  -  used by `loopers exec` to specify upstream provider (e.g. `openai`, `anthropic`, `openrouter`). Auto-detected for aider, openhands, pi, claude, gemini, codex, opencode, dsh, deepseek-harness, deepseek.
 
 **Core CLI commands:**
-- `loopers init` — interactively initialize Loopers AI firewall configuration
-- `loopers serve` — starts the Loopers AI firewall runtime server (reads `loopers.yaml`)
-- `loopers doctor` — diagnoses firewall config, Redis connectivity, and security engines
-- `loopers keys create --name <n> --provider <p>` — creates a proxy key; returns raw key (`lp-xxx`) and hash
-- `loopers keys list` — lists all active firewall agent keys
-- `loopers keys revoke <hash>` — revokes an agent key
-- `loopers budget set <hash> [--minute] [--hourly] [--daily] [--weekly] [--monthly]` — sets atomic spending limits in USD
-- `loopers budget status <hash>` — shows real-time spend consumption vs limits
-- `loopers exec -- <command>` — wraps a CLI agent process, injecting proxy env vars; supports `--model-override` and `--model-map`. Auto-detects aider, openhands, pi, claude, gemini, codex, opencode, dsh, deepseek-harness, deepseek.
-- `loopers verify --trace <path>` — audits agent execution traces offline against Policy Cards, presets (`safety`, `safety_drift`, `pci`, `mcp_sandbox`, `zero_trust`, `owasp_llm_top10`, `nist_ai_rmf`, `eu_ai_act`), or Rego rules.
+- `loopers init`  -  interactively initialize Loopers AI firewall configuration
+- `loopers serve`  -  starts the Loopers AI firewall runtime server (reads `loopers.yaml`)
+- `loopers doctor`  -  diagnoses firewall config, Redis connectivity, and security engines
+- `loopers keys create --name <n> --provider <p>`  -  creates a proxy key; returns raw key (`lp-xxx`) and hash
+- `loopers keys list`  -  lists all active firewall agent keys
+- `loopers keys revoke <hash>`  -  revokes an agent key
+- `loopers budget set <hash> [--minute] [--hourly] [--daily] [--weekly] [--monthly]`  -  sets atomic spending limits in USD
+- `loopers budget status <hash>`  -  shows real-time spend consumption vs limits
+- `loopers exec -- <command>`  -  wraps a CLI agent process, injecting proxy env vars; supports `--model-override` and `--model-map`. Auto-detects aider, openhands, pi, claude, gemini, codex, opencode, dsh, deepseek-harness, deepseek.
+- `loopers verify --trace <path>`  -  audits agent execution traces offline against Policy Cards, presets (`safety`, `safety_drift`, `pci`, `mcp_sandbox`, `zero_trust`, `owasp_llm_top10`, `nist_ai_rmf`, `eu_ai_act`), or Rego rules.
 
 **Supported providers for `--provider` flag:**
 `openai`, `anthropic`, `gemini`, `bedrock`, `azure`, `mistral`, `groq`, `cohere`, `deepseek`, `together`, `ollama`, `fireworks`, `xai`, `vllm`, `openrouter`
@@ -90,7 +90,7 @@ Embedded zero-dependency compliance policy cards loaded via `--presets` or `loop
 **Tool Blast Radius Risk Scoring (Capability 8):**
 Embedded pre-execution risk calculation engine (`internal/blastradius`) for MCP tool calls and LLM function invocations:
 - Deterministic Factor Matrix: Destructive verbs (+35), OS shell execution (+30), IAM & secret targets (+25), production databases & cluster scopes (+25), financial transfers (+25), external network egress URLs/IPs (+25), bulk wildcards & recursive traversals (+20), read-only mitigations (-10).
-- Normalized Risk Tiers: `low` (0–29), `medium` (30–59), `high` (60–84), `critical` (85–100).
+- Normalized Risk Tiers: `low` (0-29), `medium` (30-59), `high` (60-84), `critical` (85-100).
 - Policy Engine Telemetry: Exposes `input.action.blast_radius`, `input.action.blast_radius_tier`, and `input.action.blast_radius_reasons` to OPA/Rego and YAML Policy Cards (`action.blast_radius > 60` -> `escalate`).
 - Out-of-the-Box Sandbox Presets: `mcp_sandbox` automatically escalates tool calls >60 and denies critical executions (>=85).
 
@@ -106,6 +106,7 @@ Embedded pre-execution risk calculation engine (`internal/blastradius`) for MCP 
 
 ## Key Concepts
 
+- [Context Acceleration & Ghost Tokens](/docs/concepts/context-acceleration): Inline wire optimization cutting input token spend by 65% to 75% via side-channel Redis Ghost Stubs, dynamic synthesis-gated tail-hydration, deterministic prefix canonicalization, and smart fast-tier routing.
 - [Budget Windows](/docs/concepts/budget-windows): How the five time windows (minute, hourly, daily, weekly, monthly) work independently. First limit hit blocks the request.
 - [Session Budgets](/docs/concepts/session-budgets): Multi-turn agent cost tracking with per-session spend limits and `X-Loopers-Session-Id` header propagation.
 - [Agent Loop Detection](/docs/concepts/agent-loop-detection): Fingerprint-based and velocity-based loop detection. Configurable thresholds in `loopers.yaml` under `loop_detection`.
@@ -131,9 +132,9 @@ Embedded pre-execution risk calculation engine (`internal/blastradius`) for MCP 
 ## Reference
 
 - [CLI Reference](/docs/reference/cli): Full command reference for every `loopers` subcommand and flag.
-- [Configuration (loopers.yaml)](/docs/reference/config): Complete config file reference — server, redis, proxy, policy, alerting, otel, loop_detection, session, mcp.
+- [Configuration (loopers.yaml)](/docs/reference/config): Complete config file reference  -  server, redis, proxy, policy, alerting, otel, loop_detection, session, mcp.
 - [HTTP Headers Reference](/docs/reference/headers): All request and response headers used by Loopers (`X-Loopers-Provider-Key`, `X-Loopers-Session-Id`, `X-Loopers-Policy-Block`, etc).
 
 ## Complete Context File
 
-- [llms-full.txt](/llms-full.txt): Single concatenated file containing all documentation above — use this when you need complete context about Loopers in one fetch.
+- [llms-full.txt](/llms-full.txt): Single concatenated file containing all documentation above  -  use this when you need complete context about Loopers in one fetch.

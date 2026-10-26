@@ -42,8 +42,9 @@ All `X-Loopers-*` budget and telemetry response headers can be completely suppre
 | X-Loopers-Signature | Injected back into the HTTP response headers to return the cryptographic action receipt to the downstream client. |
 | X-Loopers-FinOps-Route | Indicates routing tier (e.g., `"fast-tier"`) when Smart FinOps model routing is active. |
 | X-Loopers-FinOps-Throttled | Set to `"true"` when output tokens were bounded on simple intermediate verification turns. |
-| X-Loopers-Cache-Read-Tokens | Number of input prompt tokens read from upstream provider KV cache. |
-| X-Loopers-Cache-Write-Tokens | Number of input prompt tokens written into upstream provider KV cache. |
+| X-Loopers-Saved-USD | Cumulative USD saved on the request via arbitrage, ghost tokens, or memoized tools |
+| X-Loopers-Ghost-Token | Blob ID emitted when an outbound MCP tool result is offloaded to a ghost stub |
+| X-Loopers-MCP-Memoized | Set to `"true"` when an idempotent tool call was served directly from cache |
 
 
 ## Error Codes

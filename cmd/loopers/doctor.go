@@ -138,14 +138,21 @@ var doctorCmd = &cobra.Command{
 		fmt.Println("  Context Acceleration Engines (Regime 2)")
 
 		// Ghost Tokens
-		if viper.GetBool("ghost_tokens.enabled") {
-			thresh := viper.GetInt("ghost_tokens.threshold_bytes")
+		ghostEnabled := viper.GetBool("mcp.ghost_tokens.enabled") || viper.GetBool("ghost_tokens.enabled")
+		if ghostEnabled {
+			thresh := viper.GetInt("mcp.ghost_tokens.threshold_bytes")
 			if thresh == 0 {
-				thresh = 512
+				thresh = viper.GetInt("ghost_tokens.threshold_bytes")
 			}
-			ttl := viper.GetInt("ghost_tokens.ttl_seconds")
+			if thresh == 0 {
+				thresh = 8192
+			}
+			ttl := viper.GetInt("mcp.ghost_tokens.ttl_seconds")
 			if ttl == 0 {
-				ttl = 3600
+				ttl = viper.GetInt("ghost_tokens.ttl_seconds")
+			}
+			if ttl == 0 {
+				ttl = 1800
 			}
 			ui.Success(fmt.Sprintf("Ghost Token Engine: ENABLED (Threshold: %d bytes, TTL: %ds)", thresh, ttl))
 		} else {
@@ -153,13 +160,15 @@ var doctorCmd = &cobra.Command{
 		}
 
 		// Schema Minifier & Memoization
-		if viper.GetBool("sanitizer.minify_schemas") {
+		minifyEnabled := viper.GetBool("mcp.sanitizer.minify_schemas") || viper.GetBool("sanitizer.minify_schemas")
+		if minifyEnabled {
 			ui.Success("Tool Schema Minifier: ENABLED")
 		} else {
 			ui.Warn("Tool Schema Minifier: DISABLED")
 		}
 
-		if viper.GetBool("sanitizer.memoize_read_only") {
+		memoizeEnabled := viper.GetBool("mcp.memoize_read_only") || viper.GetBool("mcp.sanitizer.memoize_read_only") || viper.GetBool("sanitizer.memoize_read_only") || viper.GetBool("memoize_read_only")
+		if memoizeEnabled {
 			ui.Success("Read-Only Tool Memoizer: ENABLED")
 		} else {
 			ui.Warn("Read-Only Tool Memoizer: DISABLED")

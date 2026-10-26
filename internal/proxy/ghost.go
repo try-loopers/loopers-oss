@@ -248,6 +248,28 @@ func HydratePromptTail(
 		return body, nil
 	}
 
+	// Validate tail message role BEFORE performing Redis GETs and AES-GCM decryption.
+	// Never auto-hydrate onto an intermediate tool-return message (role == "tool"
+	// or Anthropic tool_result content blocks). Hydration is strictly reserved for
+	// user-initiated synthesis turns so tool-chaining loops stay compact.
+	lastIdx := len(messagesRaw) - 1
+	lastMsg, ok := messagesRaw[lastIdx].(map[string]interface{})
+	if !ok {
+		return body, nil
+	}
+	if role, _ := lastMsg["role"].(string); role != "user" {
+		return body, nil
+	}
+	if blocks, ok := lastMsg["content"].([]interface{}); ok {
+		for _, b := range blocks {
+			if bMap, ok := b.(map[string]interface{}); ok {
+				if bType, _ := bMap["type"].(string); bType == "tool_result" {
+					return body, nil
+				}
+			}
+		}
+	}
+
 	ghostKey := DeriveGhostKey(proxyKey, sessionID)
 
 	// Fetch and decrypt blobs
@@ -277,6 +299,8 @@ func HydratePromptTail(
 				decrypted = append(decrypted[:maxChars], []byte("\n... [hydrated payload truncated by Loopers budget]")...)
 			}
 		}
+		totalTokensEstimated += len(decrypted) / 4
+
 		var blockBuilder strings.Builder
 		blockBuilder.WriteString("<loopers_hydrated_context ref=\"loopers:blob:")
 		for _, r := range blobID {
@@ -300,29 +324,6 @@ func HydratePromptTail(
 	}
 
 	concatenatedHydration := "\n\n" + strings.Join(hydratedBlocks, "\n\n")
-
-	// Append to the TAIL message (messages[len-1])
-	lastIdx := len(messagesRaw) - 1
-	lastMsg, ok := messagesRaw[lastIdx].(map[string]interface{})
-	if !ok {
-		return body, nil
-	}
-
-	// Never auto-hydrate onto an intermediate tool-return message (role == "tool"
-	// or Anthropic tool_result content blocks). Hydration is strictly reserved for
-	// user-initiated synthesis turns so tool-chaining loops stay compact.
-	if role, _ := lastMsg["role"].(string); role != "user" {
-		return body, nil
-	}
-	if blocks, ok := lastMsg["content"].([]interface{}); ok {
-		for _, b := range blocks {
-			if bMap, ok := b.(map[string]interface{}); ok {
-				if bType, _ := bMap["type"].(string); bType == "tool_result" {
-					return body, nil
-				}
-			}
-		}
-	}
 
 	switch content := lastMsg["content"].(type) {
 	case string:

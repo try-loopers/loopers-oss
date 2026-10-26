@@ -13,16 +13,16 @@ Stay up to date with the newest capabilities we've added to the Loopers cost fir
 
 ## Inline Context Acceleration & Wire FinOps (Normal Days Optimization)
 Loopers AI Firewall now features an integrated inline acceleration engine to drastically cut token consumption and baseline costs on healthy production agent traffic:
-- **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`)**: Bulky tool outputs (MCP responses, SQL payloads > 512 bytes) are encrypted via AES-256-GCM / HKDF and offloaded to local Redis, replaced in intermediate prompt context by lightweight, schema-compliant Ghost Stubs (~80 tokens). Yields **65%–75% input token compression**.
+- **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`)**: Bulky tool outputs (MCP responses, SQL payloads > 512 bytes) are encrypted via AES-256-GCM / HKDF and offloaded to local Redis, replaced in intermediate prompt context by lightweight, schema-compliant Ghost Stubs (~80 tokens). Yields **65% to 75% input token compression**.
 - **Dynamic Tail-Hydration (`HydratePromptTail`)**: Automatically gates payload restoration on frontier reasoning/synthesis turns (`!isSimpleTurn`), restoring full raw context via `<loopers_hydrated_context>` when deep analysis is needed while keeping intermediate verification turns ultra-lean.
 - **Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`)**: Sorts tool schemas, normalizes whitespace, and stabilizes timestamps to guarantee upstream KV prompt cache hits across OpenAI, Anthropic, and OpenRouter for up to **90% cache read discounts**.
 - **Smart Fast-Tier Routing (`internal/server/router.go`)**: Routes lightweight tool verification turns to fast models (e.g., `deepseek-v4-pro` -> `deepseek-v4.1-flash-1017`, `gpt-4o` -> `gpt-4o-mini`) on cold cache, while preserving model pinning on warm cache to capture prompt cache read discounts.
-- **Zero-SDK Session Derivation**: Automatically tracks multi-turn trajectories using header fallbacks (`X-Loopers-Session-ID`, `X-Session-ID`, `X-Thread-ID`) or cryptographic prompt hashing with zero code changes required in agent frameworks.
+- **Zero-SDK Session Derivation**: Automatically tracks multi-turn trajectories using `X-Loopers-Session-ID` or deterministic cryptographic key hashing with zero code changes required in agent frameworks.
 
 ---
 
 ## Tool Blast Radius Risk Scoring (Layer 5)
-Loopers now computes an intrinsic risk score (0–100) and risk tier (`low`, `medium`, `high`, `critical`) for every MCP and LLM tool execution before passing it to policy evaluation:
+Loopers now computes an intrinsic risk score (0 to 100) and risk tier (`low`, `medium`, `high`, `critical`) for every MCP and LLM tool execution before passing it to policy evaluation:
 - **Deterministic Factor Engine (`internal/blastradius`)**: Evaluates destructive verbs (+35), OS shell execution (+30), IAM & secret targets (+25), production databases & cluster scopes (+25), financial transfers (+25), external egress URLs/IPs (+25), and bulk wildcards/traversals (+20) with pure read-only mitigations (-10).
 - **Sub-10µs Performance**: Zero-dependency, memory-safe execution benchmarked at `< 7µs` per tool call.
 - **OPA & YAML Integration**: Exposes `input.action.blast_radius`, `input.action.blast_radius_tier`, and `input.action.blast_radius_reasons` for simple declarative rules (`field: action.blast_radius, op: greater_than, value: 60` -> `escalate`).
@@ -69,14 +69,14 @@ Loopers self-hosted v1.1+ now uses **Bi-Gram Jaccard Similarity** to compare req
 ---
 
 ## Local Policy Engine (OPA/Rego)
-Loopers now includes an embedded Open Policy Agent (OPA) engine for fine-grained, attribute-based access control. Write `.rego` policies to govern which agents can access which models, block destructive MCP tools, and enforce environment-level restrictions — all evaluated at the network layer before any request is forwarded upstream. Policies are hot-reloaded within 500ms when files change, with zero downtime.
+Loopers now includes an embedded Open Policy Agent (OPA) engine for fine-grained, attribute-based access control. Write `.rego` policies to govern which agents can access which models, block destructive MCP tools, and enforce environment-level restrictions, all evaluated at the network layer before any request is forwarded upstream. Policies are hot-reloaded within 500ms when files change, with zero downtime.
 * **Learn More**: See the [Policy Engine Guide](/docs/guides/policy-engine).
 
 ## Agent Identity & Key Metadata
 Every proxy key can now carry rich identity metadata including `agent_name`, `owner`, `allowed_tools`, `allowed_providers`, and arbitrary `tags` (key=value pairs). This identity flows into policy evaluation, OpenTelemetry trace spans, and security event webhooks, enabling full audit trails and per-agent governance.
 
 ## CrewAI & AutoGen Framework Adapters
-We have launched native Python SDK adapters for CrewAI and Microsoft AutoGen. Drop in `get_loopers_crewai_llm()` to return a LangChain `ChatOpenAI` instance routed through Loopers, or use `get_loopers_autogen_config()` to generate an AutoGen-compatible `llm_config` dictionary. All Loopers features — budget enforcement, loop detection, and policy evaluation — are applied automatically.
+We have launched native Python SDK adapters for CrewAI and Microsoft AutoGen. Drop in `get_loopers_crewai_llm()` to return a LangChain `ChatOpenAI` instance routed through Loopers, or use `get_loopers_autogen_config()` to generate an AutoGen-compatible `llm_config` dictionary. All Loopers features (budget enforcement, loop detection, and policy evaluation) are applied automatically.
 * **Learn More**: See the [Framework Adapters Guide](/docs/guides/framework-adapters).
 
 ## Per-Key Rate Limiting

@@ -34,7 +34,7 @@ By turn 10, **over 80% of the tokens billed are redundant historical tool result
 
 ## 1. Ghost Tokens: Side-Channel KV-Cache Offload
 
-Loopers intercepts inbound agent payloads in `internal/proxy/ghost.go` and offloads large tool execution payloads into an ephemeral side-channel:
+Loopers intercepts large tool execution payloads on the MCP outbound response path in `internal/mcp/handler.go` and offloads them into an ephemeral side-channel:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -45,34 +45,39 @@ Loopers intercepts inbound agent payloads in `internal/proxy/ghost.go` and offlo
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │ Loopers AI Firewall (internal/proxy/ghost.go)                          │
-│ 1. Scan tool role messages (`role: "tool"` or `role: "function"`)      │
-│ 2. Payload size > threshold_bytes (512B)?                              │
-│ 3. Encrypt payload with AES-256-GCM (HKDF-derived secret)              │
-│ 4. Offload to Redis: SET ghost:<sha256> <encrypted_blob> EX 3600       │
-│ 5. Replace wire content with 80-token Ghost Stub                       │
+│ 1. Evaluates incoming turns for synthesis vs simple execution          │
+│ 2. Dynamic Tail-Hydration restores raw blobs when frontier synthesizes │
+│ 3. Offload occurs at MCP response layer (internal/mcp/handler.go)      │
+│ 4. Offload to Redis: loopers:blob:{keyHash}:{sessionID}:{blobID}       │
+│ 5. Returns wire content with compact Ghost Stub                        │
 └───────────────────┬──────────────────────────────────┬─────────────────┘
                     │                                  │
                     ▼ Raw Payload (AES-256-GCM)        ▼ Compressed Prompt (~80 tokens)
           ┌───────────────────┐              ┌───────────────────┐
           │      Redis        │              │ Upstream Provider │
-          │  ghost:<sha256>   │              │ (Anthropic/OpenAI)│
+          │   loopers:blob    │              │ (Anthropic/OpenAI)│
           └───────────────────┘              └───────────────────┘
 ```
 
 ### The Ghost Stub
 
-The raw 15,000-token tool response is replaced on the wire by a compact, schema-compliant JSON stub:
+The raw 15,000-token tool response is replaced on the wire by a compact, schema-compliant JSON stub (`GhostStub` in `internal/proxy/ghost.go`):
 
 ```json
 {
-  "status": "success",
-  "summary": "[Loopers Ghost Token: payload offloaded to side-channel cache]",
-  "ghost_ref": "lp_ghost_7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
-  "bytes_saved": 15360
+  "_loopers_ref": "loopers:blob:7f83b1657ff1fc53",
+  "tool": "read_file",
+  "original_bytes": 15360,
+  "est_tokens_saved": 3840,
+  "structure": {
+    "type": "file",
+    "extension": "go"
+  },
+  "preview": "package main\n\nimport (\n..."
 }
 ```
 
-The LLM still understands that the tool execution succeeded and can reference the `ghost_ref`, but the prompt token payload drops from 15,000 tokens to under 80 tokens.
+The LLM still understands that the tool execution succeeded and can reference the `_loopers_ref`, but the prompt token payload drops from 15,000 tokens to under 80 tokens.
 
 ---
 
@@ -84,7 +89,7 @@ Loopers solves this with **Dynamic Prompt Tail-Hydration** (`HydratePromptTail`)
 
 1. **Turn Classification**: Loopers inspects the agent's message structure and intent. Intermediate turns (e.g. navigation, verification checks, or issuing subsequent tool calls) execute with compressed Ghost Stubs.
 2. **Frontier Synthesis Detection**: When the agent reaches a synthesis or final completion turn (`!isSimpleTurn`), Loopers recognizes that full context is required.
-3. **Just-in-Time Decryption**: Loopers fetches the referenced ghost blobs from Redis, decrypts them in volatile memory, and injects them into an explicit context container at the tail of the prompt:
+3. **Just-in-Time Decryption**: Loopers fetches the referenced ghost blobs from Redis, decrypts them in volatile memory via ephemeral HKDF-SHA256 derived keys, and injects them into an explicit context container at the tail of the prompt:
 
 ```markdown
 <loopers_hydrated_context>
@@ -93,7 +98,7 @@ Loopers solves this with **Dynamic Prompt Tail-Hydration** (`HydratePromptTail`)
 </loopers_hydrated_context>
 ```
 
-4. **Zero Quality Regressions**: The frontier model has 100% of the raw data at the precise moment it writes the final code or answer. Intermediate turns save 65%–75% of cumulative tokens without any reasoning degradation.
+4. **Zero Quality Regressions**: The frontier model has 100% of the raw data at the precise moment it writes the final code or answer. Intermediate turns save 65% to 75% of cumulative tokens without any reasoning degradation.
 
 ---
 
@@ -111,7 +116,7 @@ In `internal/proxy/canonicalizer.go`, Loopers canonicalizes requests before hash
 * **Whitespace Normalization**: Collapses superfluous whitespace and normalizes JSON separators.
 * **Stable System Anchors**: Strips volatile runtime metadata from prefix boundaries.
 
-This elevates KV-cache hit rates to **85%–90%** on multi-turn conversations, compounding savings on top of Ghost Tokens.
+This elevates KV-cache hit rates to **85% to 90%** on multi-turn conversations, compounding savings on top of Ghost Tokens.
 
 ---
 
@@ -129,23 +134,32 @@ In `internal/server/router.go`, Loopers evaluates incoming turns against model p
 Enable and tune Inline Context Acceleration in `loopers.yaml`:
 
 ```yaml
-# Inline Context Acceleration & Wire Optimization
-ghost_tokens:
+# Inline Context Acceleration & MCP Wire Optimization
+mcp:
   enabled: true
-  threshold_bytes: 512          # Offload payloads larger than 512 bytes
-  ttl_seconds: 3600             # Ephemeral Redis retention (1 hour)
-  encryption_secret: "env:LOOPERS_GHOST_SECRET" # AES-256-GCM secret key
+  ghost_tokens:
+    enabled: true
+    threshold_bytes: 8192        # Offload tool outputs larger than 8 KB (configurable 512B to 64KB)
+    ttl_seconds: 3600           # Ephemeral Redis retention (1 hour)
+  sanitizer:
+    minify_schemas: true        # Strip verbose descriptions from stable tool schemas
+  memoize_read_only: true       # Cache idempotent read-only tool responses
 
-sanitizer:
-  enabled: true
-  minify_schemas: true          # Strip verbose descriptions from stable tool schemas
-  memoize_read_only: true       # Cache read-only tool responses
+# Fast-Tier Routing is configured per model in pricing.yaml:
+pricing_path: "./pricing.yaml"
+```
 
-# Fast-Tier Routing in pricing.yaml
-model_routing:
-  enabled: true
-  fast_tier_model: "gpt-4o-mini"
-  frontier_model: "gpt-4o"
+In `pricing.yaml`, specify `fast_tier` targets for frontier models:
+
+```yaml
+providers:
+  anthropic:
+    models:
+      claude-3-5-sonnet-20241022:
+        tier: "frontier"
+        fast_tier: "claude-3-5-haiku-20241022"
+        input_per_1m: 3.00
+        output_per_1m: 15.00
 ```
 
 ---
@@ -165,5 +179,6 @@ model_routing:
 |---|---|
 | `X-Loopers-FinOps-Route` | Indicates the executed tier (e.g., `"fast-tier"` or `"frontier"`). |
 | `X-Loopers-FinOps-Throttled` | Set to `"true"` when output tokens were bounded on simple intermediate turns. |
-| `X-Loopers-Cache-Read-Tokens` | Number of tokens served from upstream provider KV cache. |
-| `X-Loopers-Cache-Write-Tokens` | Number of tokens written to upstream provider KV cache. |
+| `X-Loopers-Saved-USD` | Cumulative USD saved on the request via arbitrage, ghost tokens, or memoized tools. |
+| `X-Loopers-Ghost-Token` | Blob ID emitted when an outbound tool result is offloaded to a ghost stub. |
+| `X-Loopers-MCP-Memoized` | Set to `"true"` when an idempotent tool call was served directly from cache. |

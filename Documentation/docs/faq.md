@@ -100,9 +100,9 @@ Loopers operates across two distinct regimes to maximize infrastructure safety a
 In multi-turn agent runs, early tool execution outputs (such as large filesystem dumps or database query results) are typically only needed for intermediate steps (e.g. checking status, filtering items). Passing tens of thousands of tokens of raw JSON on every subsequent turn burns unnecessary compute and degrades LLM attention.
 
 Loopers solves this with **Dynamic Prompt Tail-Hydration**:
-* On intermediate turns, the raw payload is replaced with an encrypted cryptographic stub (`lp_ghost_<sha256>`).
+* On intermediate turns, the raw payload is replaced with an encrypted cryptographic stub (`_loopers_ref: "loopers:blob:<id>"`).
 * When the agent reaches a synthesis or reasoning turn requiring deep analysis (`!isSimpleTurn`), Loopers automatically decrypts the original context from Redis and appends it to the prompt tail (`<loopers_hydrated_context>`).
-* The frontier model receives 100% of the raw, uncompressed context exactly when it needs to formulate the final answer, achieving **65%–75% overall spend reduction with zero accuracy degradation**.
+* The frontier model receives 100% of the raw, uncompressed context exactly when it needs to formulate the final answer, achieving **65% to 75% overall spend reduction with zero accuracy degradation**.
 
 ---
 

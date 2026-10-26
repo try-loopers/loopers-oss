@@ -233,6 +233,17 @@ func NewServer(redisClient *budget.Client, pricingStore *pricing.Store) *Server 
 	var mcpCfg mcp.Config
 	var mcpHandler *mcp.Handler
 	if err := viper.UnmarshalKey("mcp", &mcpCfg); err == nil && mcpCfg.Enabled {
+		// Fallback support for root-level keys configured by TUI wizards
+		if !mcpCfg.GhostTokens.Enabled && viper.GetBool("ghost_tokens.enabled") {
+			_ = viper.UnmarshalKey("ghost_tokens", &mcpCfg.GhostTokens)
+		}
+		if !mcpCfg.Sanitizer.MinifySchemas && viper.GetBool("sanitizer.minify_schemas") {
+			mcpCfg.Sanitizer.MinifySchemas = true
+		}
+		if !mcpCfg.MemoizeReadOnly && (viper.GetBool("sanitizer.memoize_read_only") || viper.GetBool("mcp.sanitizer.memoize_read_only") || viper.GetBool("memoize_read_only")) {
+			mcpCfg.MemoizeReadOnly = true
+		}
+
 		if redisClient != nil {
 			mcpHandler = mcp.NewHandler(mcpCfg, riskProfileCfg, redisClient, pricingStore, alerter, sessionManager, policyEngine, sigSigner)
 		} else {

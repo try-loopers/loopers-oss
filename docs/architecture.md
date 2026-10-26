@@ -61,7 +61,7 @@ Loopers is engineered as a high-performance **Dual-Regime AI Firewall**. It oper
 ### Regime 1: Rogue Agent Defense ("Bad Days" Protection)
 When agents enter recursive reasoning loops, cascade failures, or suffer from indirect prompt injection, Loopers acts as an active circuit breaker:
 - **Layer 1: Key Auth & DPoP RFC 9449:** Verifies Loopers proxy keys (`lp-...`) via HMAC-SHA256 and validates cryptographic Proof-of-Possession signatures.
-- **Layer 2: Persistent Behavioral Risk Profile:** Cumulative agent risk scoring (0–100) across sessions in Redis. Triggers automatic 1-hour quarantine lockouts at score >75 and permanent blocks at >90.
+- **Layer 2: Persistent Behavioral Risk Profile:** Cumulative agent risk scoring (0 to 100) across sessions in Redis. Triggers automatic 1-hour quarantine lockouts at score >75 and permanent blocks at >90.
 - **Layer 3: Syntactic Normalization (`internal/syntactic`):** 5-stage de-obfuscation resolving Unicode TR39 homoglyphs, stripping zero-width runes, and decoding nested Base64/URL entities.
 - **Layer 4: Pre-Call Atomic Budget Leases:** Multi-window quota reservation (minute, hourly, daily, weekly, monthly) enforced atomically with 0% over-charge guarantee.
 - **Layer 5: OPA & YAML Policy Engine with FSM:** Enforces deterministic state machine transitions on tools (e.g. requiring `dry_run` before destructive shell commands) and multi-turn objective drift containment against initial session anchors ($T_1$).
@@ -70,11 +70,11 @@ When agents enter recursive reasoning loops, cascade failures, or suffer from in
 
 ### Regime 2: Inline Context Acceleration ("Normal Days" Optimization)
 Even when agents are completely healthy and operating as expected, accumulating multi-turn tool dumps creates exponential token bills. Loopers optimizes this healthy traffic inline:
-- **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`):** Offloads bulky tool outputs (MCP responses, SQL payloads, logs > 512 bytes) into local Redis with AES-256-GCM / HKDF encryption, replacing them in the prompt context with lightweight, schema-compliant Ghost Stubs (~80 tokens). Yields **65%–75% input token reduction**.
+- **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`):** Offloads bulky tool outputs (MCP responses, SQL payloads, logs > 512 bytes) into local Redis with AES-256-GCM / HKDF encryption, replacing them in the prompt context with lightweight, schema-compliant Ghost Stubs (~80 tokens). Yields **65% to 75% input token reduction**.
 - **Dynamic Prompt Tail-Hydration (`HydratePromptTail`):** Automatically detects synthesis turns requiring frontier reasoning (`!isSimpleTurn`), appending full raw payloads via `<loopers_hydrated_context>` for final reports while keeping intermediate navigation turns ultra-compact.
 - **Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`):** Re-orders tool schema definitions, normalizes whitespace, and stabilizes timestamps to guarantee upstream KV prompt cache hits (yielding 90% cache read discounts).
 - **Smart Fast-Tier Routing (`internal/server/router.go`):** Routes intermediate verification turns to fast models (e.g., `deepseek-v4-pro` -> `deepseek-v4.1-flash-1017`) on cold cache, while preserving model pinning on warm cache to exploit provider prompt cache read discounts.
-- **Zero-SDK Session Derivation:** Automatically tracks sessions using standard headers (`X-Loopers-Session-ID`, `X-Session-ID`, `X-Thread-ID`) or cryptographic hashing of prompt prefixes without requiring agent code changes.
+- **Zero-SDK Session Derivation:** Automatically tracks sessions using `X-Loopers-Session-ID` or deterministic cryptographic key hashing without requiring agent code changes.
 
 ---
 
