@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.22.0](https://github.com/try-loopers/loopers-oss/compare/v2.21.7...v2.22.0) (2026-10-26)
+
+
+### Features
+
+* **finops:** dual-regime firewall architecture, context acceleration, and tui upgrades ([c581d17](https://github.com/try-loopers/loopers-oss/commit/c581d179f8eb2fd16d603bbc5d64c48911960ca5))
+* **finops:** introduce dual-plane ghost tokens, prefix canonicalization, and zero-sdk session derivation ([22d0627](https://github.com/try-loopers/loopers-oss/commit/22d0627fcdcf4fc1d5b88f90d6c6e2131218cebf))
+
+
+### Bug Fixes
+
+* **ci:** group CodeQL actions in Dependabot and pin github/codeql-action to v4.39.1 ([64725b2](https://github.com/try-loopers/loopers-oss/commit/64725b2ab019bafbb5a1cef420d31c44cd0af266))
+* **ci:** group CodeQL actions in Dependabot and pin github/codeql-action to v4.39.1 ([0fdb45a](https://github.com/try-loopers/loopers-oss/commit/0fdb45aaa010397b3c8dc39e55dc2c1ac227d06f))
+* **ci:** pin Go version to 1.26.10 across workflows to remediate GO-2026-6809 ([d24b4bd](https://github.com/try-loopers/loopers-oss/commit/d24b4bd2e1a00a9a94fb229844d94fe3db17947e))
+* **security:** resolve CodeQL potentially unsafe quoting alert in ghost hydration ([352fdeb](https://github.com/try-loopers/loopers-oss/commit/352fdeb76069da1c7e113f9f0aae6bcb2dee75cd))
+
 ## [2.21.7](https://github.com/try-loopers/loopers-oss/compare/v2.21.6...v2.21.7) (2026-10-14)
 
 
