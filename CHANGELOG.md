@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.22.1](https://github.com/try-loopers/loopers-oss/compare/v2.22.0...v2.22.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **finops:** remediate final audit findings for context acceleration and documentation ([f0b3bf2](https://github.com/try-loopers/loopers-oss/commit/f0b3bf298373db2354567411297302c11190be90))
+* **finops:** remediate final audit findings for context acceleration and documentation ([b783207](https://github.com/try-loopers/loopers-oss/commit/b7832075ec5a7e2c42875c1d249f0b749c12eac6))
+
 ## [2.22.0](https://github.com/try-loopers/loopers-oss/compare/v2.21.7...v2.22.0) (2026-10-26)
 
 
