@@ -104,3 +104,72 @@ func TestCanonicalizeRequest_IdempotentWhenAlreadyCached(t *testing.T) {
 
 	assert.Equal(t, strings.TrimSpace(raw), strings.TrimSpace(string(canonical)))
 }
+
+func TestCanonicalizeRequest_AnthropicDualBreakpoints(t *testing.T) {
+	raw := `{
+		"model": "claude-sonnet-4-6",
+		"system": "You are an enterprise assistant.",
+		"tools": [
+			{"name": "tool_a", "description": "Tool A"},
+			{"name": "tool_b", "description": "Tool B"}
+		],
+		"messages": [{"role": "user", "content": "hello"}]
+	}`
+
+	canonical, err := CanonicalizeRequest("anthropic", "key-123", []byte(raw))
+	require.NoError(t, err)
+
+	var req map[string]interface{}
+	err = json.Unmarshal(canonical, &req)
+	require.NoError(t, err)
+
+	// Invariant 1: System block must have cache_control
+	sysBlocks := req["system"].([]interface{})
+	require.Len(t, sysBlocks, 1)
+	assert.Equal(t, "ephemeral", sysBlocks[0].(map[string]interface{})["cache_control"].(map[string]interface{})["type"])
+
+	// Invariant 2: Last tool in tools must also have cache_control (dual breakpoint)
+	tools := req["tools"].([]interface{})
+	require.Len(t, tools, 2)
+	lastTool := tools[1].(map[string]interface{})
+	require.NotNil(t, lastTool["cache_control"])
+	assert.Equal(t, "ephemeral", lastTool["cache_control"].(map[string]interface{})["type"])
+
+	// First tool should NOT have cache_control (only the boundary tool)
+	firstTool := tools[0].(map[string]interface{})
+	assert.Nil(t, firstTool["cache_control"])
+}
+
+func TestCanonicalizeRequest_TopLevelCacheControl_NotMutated(t *testing.T) {
+	raw := `{
+		"model": "claude-sonnet-4-6",
+		"cache_control": {"type": "ephemeral"},
+		"messages": [{"role": "user", "content": "hello"}]
+	}`
+
+	canonical, err := CanonicalizeRequest("anthropic", "key-123", []byte(raw))
+	require.NoError(t, err)
+	assert.Equal(t, strings.TrimSpace(raw), strings.TrimSpace(string(canonical)))
+}
+
+func TestCanonicalizeRequest_OpenRouterAndAzure(t *testing.T) {
+	for _, prov := range []string{"openrouter", "azure"} {
+		raw := `{
+			"model": "gpt-5.4",
+			"stream": true,
+			"messages": [{"role": "user", "content": "ping"}]
+		}`
+
+		canonical, err := CanonicalizeRequest(prov, "test-hash", []byte(raw))
+		require.NoError(t, err)
+
+		var req map[string]interface{}
+		err = json.Unmarshal(canonical, &req)
+		require.NoError(t, err)
+
+		streamOpts, ok := req["stream_options"].(map[string]interface{})
+		require.True(t, ok)
+		assert.True(t, streamOpts["include_usage"].(bool))
+	}
+}
+

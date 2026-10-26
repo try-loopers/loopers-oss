@@ -66,6 +66,8 @@ const (
 	keyNameCtx         serverContextKey = "KeyName"
 	requestIDCtx       serverContextKey = "ProxyRequestID"
 	agentNameCtx       serverContextKey = "AgentName"
+	origInputPriceCtx  serverContextKey = "OrigInputPrice"
+	origOutputPriceCtx serverContextKey = "OrigOutputPrice"
 )
 
 // Server coordinates the proxy operations and HTTP routing.

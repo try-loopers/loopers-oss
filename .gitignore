@@ -41,6 +41,13 @@ test_output.txt
 test-config.yaml
 runs.json
 policies/
+run_cohort*.py
+cohort*.csv
+Dockerfile.mcp
+cmd/mock-mcp/
+report_*.md
+revised_*.md
+Loopers Finops Code Audit Report.md
 
 # Python
 __pycache__/

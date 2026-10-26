@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/try-loopers/loopers-oss/internal/budget"
 	"github.com/try-loopers/loopers-oss/internal/keyring"
 	"github.com/try-loopers/loopers-oss/internal/pricing"
+	"github.com/try-loopers/loopers-oss/internal/proxy"
 )
 
 func setupDriftTestServer(t *testing.T) (*Server, *miniredis.Miniredis, string, *httptest.Server) {
@@ -250,3 +252,61 @@ func TestDriftSimulation_Scenario4_ConcurrentSessionIsolation(t *testing.T) {
 	cB3, bodyB3 := sendSimulatedTurn(s, rawKey, sessionB, "How long should Neapolitan pizza dough ferment in cold refrigeration?")
 	assert.Equal(t, http.StatusOK, cB3, fmt.Sprintf("Turn 3B failed: %s", bodyB3))
 }
+
+// AUD-03: Ghost Blob Hydration must not trigger false-positive Drift blocks on valid synthesis turns
+func TestHydratePromptTail_DoesNotTriggerDrift(t *testing.T) {
+	s, mr, rawKey, upstream := setupDriftTestServer(t)
+	defer mr.Close()
+	defer upstream.Close()
+	defer s.Shutdown()
+
+	sessionID := "11111111-2222-3333-4444-555555555555"
+	keyHash := keyring.HashKey(rawKey)
+	rdb := s.redis.GetUnderlyingClient()
+
+	// Store a 32 KB Ghost Blob containing SQL rows and sensitive column names in Redis
+	blobID := "a1b2c3d4e5f60718"
+	bigSQLDump := strings.Repeat("SELECT id, user_email, secret_api_token, hashed_password FROM enterprise_users;\n", 400)
+	ghostKey := proxy.DeriveGhostKey(rawKey, sessionID)
+	encBlob, err := proxy.EncryptGhostBlob(ghostKey, []byte(bigSQLDump))
+	require.NoError(t, err)
+
+	rdbKey := fmt.Sprintf("loopers:blob:{%s}:%s:%s", keyHash, sessionID, blobID)
+	rdb.Set(context.Background(), rdbKey, encBlob, 30*time.Minute)
+
+	// Turn 1: Initial query about database schema
+	c1, _ := sendSimulatedTurn(s, rawKey, sessionID, "How do we query and analyze enterprise database schemas and SQL tables?")
+	assert.Equal(t, http.StatusOK, c1)
+
+	// Turn 2: Follow up
+	c2, _ := sendSimulatedTurn(s, rawKey, sessionID, "Can you explain database indexing strategies for enterprise SQL tables?")
+	assert.Equal(t, http.StatusOK, c2)
+
+	// Turn 3: Follow up
+	c3, _ := sendSimulatedTurn(s, rawKey, sessionID, "What are best practices for optimizing slow SQL queries in our database?")
+	assert.Equal(t, http.StatusOK, c3)
+
+	// Turn 4: Synthesis turn that contains the Ghost Stub reference in the history
+	// In the pipeline, OPA and Drift must evaluate the user prompt ("Summarize the schema performance findings for database tables")
+	// and NOT the 32 KB hydrated SQL dump.
+	reqBody := fmt.Sprintf(`{
+		"model": "gpt-4o",
+		"messages": [
+			{"role": "user", "content": "How do we query and analyze enterprise database schemas and SQL tables?"},
+			{"role": "tool", "content": "{\"_loopers_ref\":\"loopers:blob:%s\",\"tool\":\"query_sql\",\"original_bytes\":%d}"},
+			{"role": "user", "content": "Summarize the schema performance findings for database tables and indexing."}
+		]
+	}`, blobID, len(bigSQLDump))
+
+	req, _ := http.NewRequest("POST", "/mock/v1/chat", bytes.NewBufferString(reqBody))
+	req.Header.Set("Authorization", "Bearer "+rawKey)
+	req.Header.Set("X-Loopers-Provider-Key", "dummy")
+	req.Header.Set("X-Loopers-Session-ID", sessionID)
+
+	w := newCloseNotifierRecorder()
+	s.GetRouter().ServeHTTP(w, req)
+
+	// Must be 200 OK — not false-positively blocked by safety_drift or policy regex!
+	assert.Equal(t, http.StatusOK, w.Code, fmt.Sprintf("Turn 4 failed with %d: %s", w.Code, w.Body.String()))
+}
+

@@ -35,6 +35,14 @@ func (a *AnthropicProvider) BaseURL() string {
 func (a *AnthropicProvider) InjectAuth(req *http.Request, providerKey string) {
 	req.Header.Set("x-api-key", providerKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
+
+	// Ensure anthropic-beta includes prompt-caching so ephemeral cache_control breakpoints are honored
+	beta := req.Header.Get("anthropic-beta")
+	if beta == "" {
+		req.Header.Set("anthropic-beta", "prompt-caching-2024-07-31")
+	} else if !strings.Contains(beta, "prompt-caching") {
+		req.Header.Set("anthropic-beta", beta+",prompt-caching-2024-07-31")
+	}
 }
 
 func (a *AnthropicProvider) RewritePath(originalPath string) string {

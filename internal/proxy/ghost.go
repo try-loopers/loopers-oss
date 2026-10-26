@@ -13,11 +13,29 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
+
+// ResolveGhostSessionID returns client sessionID or a deterministic hex UUID derived from keyHash
+// used strictly for Redis blob storage, HKDF key derivation, and read memoization.
+func ResolveGhostSessionID(headerSessionID, keyHash string) string {
+	if headerSessionID != "" {
+		return headerSessionID
+	}
+	sum := sha256.Sum256([]byte(keyHash))
+	hexStr := hex.EncodeToString(sum[:])
+	return fmt.Sprintf("%s-%s-%s-%s-%s", hexStr[0:8], hexStr[8:12], hexStr[12:16], hexStr[16:20], hexStr[20:32])
+}
+
+// ContentBlobID generates a deterministic 16-character hex identifier (8 bytes) based on SHA-256 of the payload.
+func ContentBlobID(rawResult []byte) string {
+	sum := sha256.Sum256(rawResult)
+	return hex.EncodeToString(sum[:8])
+}
 
 // GenerateBlobID generates a random 16-character hex identifier (8 bytes entropy).
 func GenerateBlobID() string {
@@ -132,6 +150,7 @@ func CreateGhostStub(toolName string, rawResult []byte, blobID string) ([]byte, 
 					for k := range firstMap {
 						keys = append(keys, k)
 					}
+					sort.Strings(keys)
 				}
 			}
 			stub.Structure = map[string]interface{}{
@@ -146,17 +165,14 @@ func CreateGhostStub(toolName string, rawResult []byte, blobID string) ([]byte, 
 			for k := range v {
 				keys = append(keys, k)
 			}
+			sort.Strings(keys)
 			stub.Structure = map[string]interface{}{
 				"keys": keys,
 			}
 			previewMap := make(map[string]interface{})
-			count := 0
-			for k, val := range v {
-				if count >= 3 {
-					break
-				}
-				previewMap[k] = val
-				count++
+			for i := 0; i < len(keys) && i < 3; i++ {
+				k := keys[i]
+				previewMap[k] = v[k]
 			}
 			stub.Preview = previewMap
 		default:
@@ -282,6 +298,22 @@ func HydratePromptTail(
 	lastMsg, ok := messagesRaw[lastIdx].(map[string]interface{})
 	if !ok {
 		return body, nil
+	}
+
+	// Never auto-hydrate onto an intermediate tool-return message (role == "tool"
+	// or Anthropic tool_result content blocks). Hydration is strictly reserved for
+	// user-initiated synthesis turns so tool-chaining loops stay compact.
+	if role, _ := lastMsg["role"].(string); role != "user" {
+		return body, nil
+	}
+	if blocks, ok := lastMsg["content"].([]interface{}); ok {
+		for _, b := range blocks {
+			if bMap, ok := b.(map[string]interface{}); ok {
+				if bType, _ := bMap["type"].(string); bType == "tool_result" {
+					return body, nil
+				}
+			}
+		}
 	}
 
 	switch content := lastMsg["content"].(type) {

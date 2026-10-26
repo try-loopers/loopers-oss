@@ -55,3 +55,74 @@ func TestActualCostWithCache_OpenAI(t *testing.T) {
 	// Saved: 0.050 - (0.0125 + 0.01875) = 0.01875
 	assert.InDelta(t, 0.01875, savedUSD, 1e-6)
 }
+
+func TestIsFrontierModel_2026Catalog(t *testing.T) {
+	store, err := LoadStore("../../pricing.yaml")
+	assert.NoError(t, err)
+
+	// Frontier models MUST return true
+	assert.True(t, store.IsFrontierModel("anthropic", "claude-sonnet-4-6"))
+	assert.True(t, store.IsFrontierModel("anthropic", "claude-opus-4-6"))
+	assert.True(t, store.IsFrontierModel("openai", "gpt-5.4"))
+	assert.True(t, store.IsFrontierModel("openai", "gpt-5"))
+	assert.True(t, store.IsFrontierModel("openai", "gpt-4o"))
+	assert.True(t, store.IsFrontierModel("openai", "o3"))
+	assert.True(t, store.IsFrontierModel("gemini", "gemini-3.5-pro"))
+	assert.True(t, store.IsFrontierModel("gemini", "gemini-2.5-pro"))
+	assert.True(t, store.IsFrontierModel("deepseek", "deepseek-v4-pro"))
+	assert.True(t, store.IsFrontierModel("mistral", "mistral-large-latest"))
+
+	// Fast/utility models MUST return false
+	assert.False(t, store.IsFrontierModel("anthropic", "claude-haiku-4-5"))
+	assert.False(t, store.IsFrontierModel("openai", "gpt-4o-mini"))
+	assert.False(t, store.IsFrontierModel("openai", "gpt-4.1-nano"))
+	assert.False(t, store.IsFrontierModel("openai", "o4-mini"))
+	assert.False(t, store.IsFrontierModel("gemini", "gemini-3.5-flash"))
+	assert.False(t, store.IsFrontierModel("gemini", "gemini-2.5-flash"))
+	assert.False(t, store.IsFrontierModel("deepseek", "deepseek-v4-flash"))
+	assert.False(t, store.IsFrontierModel("mistral", "mistral-small-latest"))
+
+	// Unknown models with lightweight suffixes must return false and not inherit _fallback price
+	assert.False(t, store.IsFrontierModel("openai", "unknown-nano-model"))
+	assert.False(t, store.IsFrontierModel("anthropic", "custom-haiku-model"))
+}
+
+func TestFindModelPrice_DateSuffixAndAliases(t *testing.T) {
+	store, err := LoadStore("../../pricing.yaml")
+	assert.NoError(t, err)
+
+	// 1. OpenAI dated snapshots must resolve to canonical model rates (not _fallback 30/180)
+	in4o, out4o, _ := store.GetModelPrice("openai", "gpt-4o-2024-08-06")
+	assert.Equal(t, 2.50, in4o)
+	assert.Equal(t, 10.00, out4o)
+	assert.Equal(t, "gpt-4o-mini", store.GetFastTier("openai", "gpt-4o-2024-08-06"))
+
+	in4oMini, out4oMini, _ := store.GetModelPrice("openai", "gpt-4o-mini-2024-07-18")
+	assert.Equal(t, 0.15, in4oMini)
+	assert.Equal(t, 0.60, out4oMini)
+
+	// chatgpt-4o-latest alias
+	inChat, outChat, _ := store.GetModelPrice("openai", "chatgpt-4o-latest")
+	assert.Equal(t, 2.50, inChat)
+	assert.Equal(t, 10.00, outChat)
+
+	// 2. Anthropic dated snapshots must resolve to canonical model rates (not _fallback 5/25)
+	inSonnet, outSonnet, _ := store.GetModelPrice("anthropic", "claude-3-5-sonnet-20241022")
+	assert.Equal(t, 3.00, inSonnet)
+	assert.Equal(t, 15.00, outSonnet)
+	assert.Equal(t, "claude-3-5-haiku", store.GetFastTier("anthropic", "claude-3-5-sonnet-20241022"))
+	assert.True(t, store.IsFrontierModel("anthropic", "claude-3-5-sonnet-20241022"))
+
+	inHaiku, outHaiku, _ := store.GetModelPrice("anthropic", "claude-3-5-haiku-20241022")
+	assert.Equal(t, 0.80, inHaiku)
+	assert.Equal(t, 4.00, outHaiku)
+	assert.False(t, store.IsFrontierModel("anthropic", "claude-3-5-haiku-20241022"))
+
+	// 3. Gemini dated snapshots / versions
+	inGemini, outGemini, _ := store.GetModelPrice("gemini", "gemini-1.5-pro-002")
+	assert.Equal(t, 1.25, inGemini)
+	assert.Equal(t, 5.00, outGemini)
+	assert.Equal(t, "gemini-1.5-flash", store.GetFastTier("gemini", "gemini-1.5-pro-002"))
+}
+
+

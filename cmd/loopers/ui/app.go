@@ -27,6 +27,7 @@ var menuItems = []struct {
 	{"Diagnostics", "screen_doctor"},
 	{"Keys & Agent Identity", "screen_keys"},
 	{"Budgets & Rate Limits", "screen_budget"},
+	{"Context Acceleration & Ghost Tokens", "screen_context_acceleration"},
 	{"Loop Detection", "screen_loop"},
 	{"MCP Governance & Injection Wall", "screen_mcp"},
 	{"Policy Engine & FSM Gating", "screen_policy"},
@@ -109,7 +110,7 @@ func (m AppModel) View() string {
 
 		line := cursor + item.label
 		// Pad to align the hints
-		padLen := 40 - lipgloss.Width(line)
+		padLen := 44 - lipgloss.Width(line)
 		if padLen < 0 {
 			padLen = 0
 		}

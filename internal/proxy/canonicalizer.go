@@ -85,7 +85,7 @@ func CanonicalizeRequest(providerName, keyHash string, body []byte) ([]byte, err
 		if injectAnthropicCacheControl(reqMap) {
 			mutated = true
 		}
-	case "openai":
+	case "openai", "openrouter", "azure":
 		if keyHash != "" {
 			if _, exists := reqMap["prompt_cache_key"]; !exists {
 				reqMap["prompt_cache_key"] = keyHash
@@ -147,14 +147,25 @@ func extractVolatileLines(input string) (string, []string) {
 }
 
 func injectAnthropicCacheControl(reqMap map[string]interface{}) bool {
-	// If cache_control already exists in system or tools, do nothing
+	// If cache_control already exists in system, tools, or top-level, do nothing
 	if hasAnthropicCacheControl(reqMap) {
 		return false
 	}
 
 	ephemeral := map[string]interface{}{"type": "ephemeral"}
+	injected := false
 
-	// 1. Try system message block
+	// 1. Mark the final tool in tools[] so MCP schemas have an isolated breakpoint
+	if toolsRaw, exists := reqMap["tools"]; exists {
+		if toolsSlice, ok := toolsRaw.([]interface{}); ok && len(toolsSlice) > 0 {
+			if lastTool, ok := toolsSlice[len(toolsSlice)-1].(map[string]interface{}); ok {
+				lastTool["cache_control"] = ephemeral
+				injected = true
+			}
+		}
+	}
+
+	// 2. Also mark the system prompt block if present
 	if sysRaw, exists := reqMap["system"]; exists {
 		if sysStr, ok := sysRaw.(string); ok && len(sysStr) > 0 {
 			reqMap["system"] = []interface{}{
@@ -164,30 +175,22 @@ func injectAnthropicCacheControl(reqMap map[string]interface{}) bool {
 					"cache_control": ephemeral,
 				},
 			}
-			return true
-		}
-		if sysBlocks, ok := sysRaw.([]interface{}); ok && len(sysBlocks) > 0 {
+			injected = true
+		} else if sysBlocks, ok := sysRaw.([]interface{}); ok && len(sysBlocks) > 0 {
 			if lastBlock, ok := sysBlocks[len(sysBlocks)-1].(map[string]interface{}); ok {
 				lastBlock["cache_control"] = ephemeral
-				return true
+				injected = true
 			}
 		}
 	}
 
-	// 2. Alternatively, place on the final tool in tools
-	if toolsRaw, exists := reqMap["tools"]; exists {
-		if toolsSlice, ok := toolsRaw.([]interface{}); ok && len(toolsSlice) > 0 {
-			if lastTool, ok := toolsSlice[len(toolsSlice)-1].(map[string]interface{}); ok {
-				lastTool["cache_control"] = ephemeral
-				return true
-			}
-		}
-	}
-
-	return false
+	return injected
 }
 
 func hasAnthropicCacheControl(reqMap map[string]interface{}) bool {
+	if _, exists := reqMap["cache_control"]; exists {
+		return true
+	}
 	if sysBlocks, ok := reqMap["system"].([]interface{}); ok {
 		for _, b := range sysBlocks {
 			if bMap, ok := b.(map[string]interface{}); ok {

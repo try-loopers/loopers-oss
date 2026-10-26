@@ -2,6 +2,7 @@ package budget
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -245,3 +246,46 @@ func TestRecordSavingsAndGetBudgetStatus(t *testing.T) {
 		t.Errorf("expected daily saved 2.50, got %f", status["daily"].SavedUSD)
 	}
 }
+
+func TestBudgetCheckAction_JSONDecoding(t *testing.T) {
+	// Represents the exact struct defined in .github/actions/budget-check/check.go
+	type actionWindowStatus struct {
+		Limit        float64 `json:"limit"`
+		CurrentSpend float64 `json:"current_spend"`
+		SavedUSD     float64 `json:"saved_usd,omitempty"`
+	}
+
+	engineStatus := map[string]WindowStatus{
+		"daily": {
+			Limit:        100.0,
+			CurrentSpend: 42.50,
+			SavedUSD:     15.75,
+		},
+	}
+
+	rawJSON, err := json.Marshal(engineStatus)
+	if err != nil {
+		t.Fatalf("failed to marshal engine status: %v", err)
+	}
+
+	var actionStatus map[string]actionWindowStatus
+	if err := json.Unmarshal(rawJSON, &actionStatus); err != nil {
+		t.Fatalf("failed to unmarshal into action struct: %v", err)
+	}
+
+	daily, ok := actionStatus["daily"]
+	if !ok {
+		t.Fatalf("expected daily window status in unmarshaled result")
+	}
+
+	if daily.Limit != 100.0 {
+		t.Errorf("expected limit 100.0, got %f", daily.Limit)
+	}
+	if daily.CurrentSpend != 42.50 {
+		t.Errorf("expected current_spend 42.50, got %f", daily.CurrentSpend)
+	}
+	if daily.SavedUSD != 15.75 {
+		t.Errorf("expected saved_usd 15.75, got %f", daily.SavedUSD)
+	}
+}
+

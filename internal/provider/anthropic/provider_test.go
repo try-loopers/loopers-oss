@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,4 +72,27 @@ data: {"type":"message_stop"}`)
 	assert.NoError(t, err)
 	assert.True(t, isDone)
 	assert.Equal(t, 0, stopUsage.OutputTokens)
+}
+
+func TestAnthropicProvider_InjectAuth_PromptCachingBeta(t *testing.T) {
+	p := NewAnthropicProvider()
+
+	// Case 1: Fresh request with no anthropic-beta header
+	req1, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", nil)
+	p.InjectAuth(req1, "sk-ant-testkey")
+	assert.Equal(t, "sk-ant-testkey", req1.Header.Get("x-api-key"))
+	assert.Equal(t, "2023-06-01", req1.Header.Get("anthropic-version"))
+	assert.Equal(t, "prompt-caching-2024-07-31", req1.Header.Get("anthropic-beta"))
+
+	// Case 2: Existing anthropic-beta header from client without prompt-caching
+	req2, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", nil)
+	req2.Header.Set("anthropic-beta", "pdfs-2024-09-25")
+	p.InjectAuth(req2, "sk-ant-testkey")
+	assert.Equal(t, "pdfs-2024-09-25,prompt-caching-2024-07-31", req2.Header.Get("anthropic-beta"))
+
+	// Case 3: Existing anthropic-beta already contains prompt-caching
+	req3, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", nil)
+	req3.Header.Set("anthropic-beta", "prompt-caching-2024-07-31,pdfs-2024-09-25")
+	p.InjectAuth(req3, "sk-ant-testkey")
+	assert.Equal(t, "prompt-caching-2024-07-31,pdfs-2024-09-25", req3.Header.Get("anthropic-beta"))
 }

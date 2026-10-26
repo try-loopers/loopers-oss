@@ -327,17 +327,7 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 		span.SetAttributes(attribute.String("gen_ai.request.model", model))
 	}
 
-	// Canonicalize request for KV cache stabilization
-	if canonicalized, cErr := proxy.CanonicalizeRequest(providerName, keyHash, mutatedBody); cErr == nil {
-		mutatedBody = canonicalized
-	} else {
-		logging.Logger.Warn().Err(cErr).Msg("failed_to_canonicalize_request")
-	}
-
 	earlySessionID := c.GetHeader("X-Loopers-Session-ID")
-	if earlySessionID == "" && len(keyHash) >= 32 {
-		earlySessionID = fmt.Sprintf("%s-%s-%s-%s-%s", keyHash[0:8], keyHash[8:12], keyHash[12:16], keyHash[16:20], keyHash[20:32])
-	}
 	var rawProxyKey string
 	if pk, ok := c.Get("ProxyKey"); ok {
 		rawProxyKey, _ = pk.(string)
@@ -348,13 +338,6 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 			rawProxyKey = strings.TrimPrefix(authHeader, "Bearer ")
 		} else {
 			rawProxyKey = authHeader
-		}
-	}
-
-	if earlySessionID != "" && rawProxyKey != "" && s.redis != nil {
-		isFrontier := isFrontierModel(model)
-		if hydrated, hErr := proxy.HydratePromptTail(c.Request.Context(), keyHash, rawProxyKey, earlySessionID, mutatedBody, s.redis.GetUnderlyingClient(), isFrontier, 16000); hErr == nil {
-			mutatedBody = hydrated
 		}
 	}
 
@@ -436,9 +419,13 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 		if earlySessionID != "" && session.IsValidID(earlySessionID) && s.sessionManager != nil && actionCtx.PromptText != "" {
 			if driftCtx, dErr := s.sessionManager.ComputeDrift(c.Request.Context(), keyHash, earlySessionID, actionCtx.PromptText, policySessionCtx.Traces); dErr == nil {
 				policySessionCtx.Drift = driftCtx
+				driftScore = driftCtx.DriftScore
 			} else {
 				logging.Logger.Warn().Err(dErr).Str("session_id", earlySessionID).Msg("proxy_failed_to_compute_session_drift")
 			}
+		}
+		if actionCtx.PromptText != "" {
+			promptText = actionCtx.PromptText
 		}
 
 		var agentRiskCtx policy.AgentRiskContext
@@ -650,9 +637,43 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 		maxTokensVal = defaultMaxOut
 	}
 
+	// Step 2.2: Cache-Gravity Tier & Effort Routing
+	origModel := model
+	origInputPrice, origOutputPrice, _ := s.pricing.GetModelPrice(providerName, origModel)
 	model, mutatedBody = s.applySmartFinOpsRouting(
 		c, providerName, model, mutatedBody, prov, promptText, driftScore, traceCount, &maxTokensVal,
 	)
+
+	// Step 2.3: Synthesis-Gated Append-Only Ghost Token Hydration (runs on post-routing model)
+	// Only hydrate Ghost Stubs when:
+	//   1. The post-routing target model is a Frontier model, AND
+	//   2. The current turn requires complex reasoning/synthesis (!isSimpleTurn).
+	// On intermediate verification turns (Turn 2) or Fast-Tier turns (Turn 1), the ~80-token
+	// Ghost Stub remains in context, preserving ~98% payload compression.
+	ghostSessionID := proxy.ResolveGhostSessionID(earlySessionID, keyHash)
+	if ghostSessionID != "" && rawProxyKey != "" && s.redis != nil {
+		latestUserPrompt := extractLatestUserPrompt(mutatedBody, promptText)
+		shouldHydrate := s.isFrontierModel(providerName, model) && !isSimpleTurn(latestUserPrompt, driftScore)
+		if hydrated, hErr := proxy.HydratePromptTail(
+			c.Request.Context(),
+			keyHash,
+			rawProxyKey,
+			ghostSessionID,
+			mutatedBody,
+			s.redis.GetUnderlyingClient(),
+			shouldHydrate,
+			16000,
+		); hErr == nil {
+			mutatedBody = hydrated
+		}
+	}
+
+	// Step 2.4: Deterministic Prefix Canonicalizer (final JSON serialization before token count & signing)
+	if canonicalized, cErr := proxy.CanonicalizeRequest(providerName, keyHash, mutatedBody); cErr == nil {
+		mutatedBody = canonicalized
+	} else {
+		logging.Logger.Warn().Err(cErr).Msg("failed_to_canonicalize_request")
+	}
 
 	// 3. Pricing lookup
 	inputPrice, outputPrice, defaultMaxOut := s.pricing.GetModelPrice(providerName, model)
@@ -684,9 +705,6 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 	cacheReadPrice, cacheWritePrice := pricing.ResolveCachePrices(providerName, modelPriceDetails.InputPer1M, modelPriceDetails.CacheReadPer1M, modelPriceDetails.CacheWritePer1M)
 
 	sessionID := c.GetHeader("X-Loopers-Session-ID")
-	if sessionID == "" && len(keyHash) >= 32 {
-		sessionID = fmt.Sprintf("%s-%s-%s-%s-%s", keyHash[0:8], keyHash[8:12], keyHash[12:16], keyHash[16:20], keyHash[20:32])
-	}
 	var sessionBudget float64
 	var sessionMaxSteps int
 
@@ -811,6 +829,10 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 	ctx = context.WithValue(ctx, cacheReadPriceCtx, cacheReadPrice)
 	ctx = context.WithValue(ctx, cacheWritePriceCtx, cacheWritePrice)
 	ctx = context.WithValue(ctx, inputTokensCtx, inputTokens)
+	if origModel != model {
+		ctx = context.WithValue(ctx, origInputPriceCtx, origInputPrice)
+		ctx = context.WithValue(ctx, origOutputPriceCtx, origOutputPrice)
+	}
 	ctx = context.WithValue(ctx, keyNameCtx, meta.Name)
 	if meta.AgentName != "" {
 		ctx = context.WithValue(ctx, agentNameCtx, meta.AgentName)
@@ -920,6 +942,9 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 				return false
 			},
 			func(actualCost, savedUSD float64, inTokens, outTokens int, completion string, forcedCut bool) {
+				origIn, _ := ctx.Value(origInputPriceCtx).(float64)
+				origOut, _ := ctx.Value(origOutputPriceCtx).(float64)
+				savedUSD = computeTotalSavedUSD(actualCost, savedUSD, inTokens, outTokens, origIn, origOut)
 				s.redis.LeaseManager.ReconcileSpend(ctx, keyHash, totalPaid, actualCost)
 				s.checkBudgetOverdrawAsync(ctx, keyHash, provName, model)
 				if savedUSD > 0 {
@@ -1102,6 +1127,9 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 		}
 
 		actualCost, savedUSD := pricing.ActualCostWithCache(totalInputTokens, totalOutputTokens, cacheReadTokens, cacheWriteTokens, inputPrice, outputPrice, cacheReadPrice, cacheWritePrice)
+		origIn, _ := ctx.Value(origInputPriceCtx).(float64)
+		origOut, _ := ctx.Value(origOutputPriceCtx).(float64)
+		savedUSD = computeTotalSavedUSD(actualCost, savedUSD, totalInputTokens+cacheReadTokens+cacheWriteTokens, totalOutputTokens, origIn, origOut)
 		s.redis.LeaseManager.ReconcileSpend(ctx, keyHash, reservedCost, actualCost)
 		s.checkBudgetOverdrawAsync(ctx, keyHash, provName, model)
 		if !viper.GetBool("server.strip_budget_headers") {
@@ -1268,12 +1296,38 @@ func applyPromptTransforms(body []byte, transforms []policy.TransformRule) []byt
 	return body
 }
 
-func isFrontierModel(model string) bool {
+func (s *Server) isFrontierModel(providerName, model string) bool {
+	if s.pricing != nil {
+		return s.pricing.IsFrontierModel(providerName, model)
+	}
 	m := strings.ToLower(model)
-	if strings.Contains(m, "mini") || strings.Contains(m, "haiku") || strings.Contains(m, "flash") {
+	if strings.Contains(m, "mini") || strings.Contains(m, "nano") ||
+		strings.Contains(m, "haiku") || strings.Contains(m, "flash") ||
+		strings.Contains(m, "small") {
 		return false
 	}
-	return strings.Contains(m, "gpt-4") || strings.Contains(m, "claude-3") || strings.Contains(m, "o1") || strings.Contains(m, "o3") || strings.Contains(m, "gemini-1.5-pro")
+	return strings.Contains(m, "gpt-5") || strings.Contains(m, "gpt-4") ||
+		strings.Contains(m, "claude-") || strings.Contains(m, "o1") ||
+		strings.Contains(m, "o3") || strings.Contains(m, "pro") ||
+		strings.Contains(m, "large") || strings.Contains(m, "reasoner")
+}
+
+func extractLatestUserPrompt(body []byte, fallback string) string {
+	var reqMap map[string]interface{}
+	if err := json.Unmarshal(body, &reqMap); err == nil {
+		if msgs, ok := reqMap["messages"].([]interface{}); ok {
+			for i := len(msgs) - 1; i >= 0; i-- {
+				if msgMap, ok := msgs[i].(map[string]interface{}); ok {
+					if role, _ := msgMap["role"].(string); role == "user" {
+						if content, ok := msgMap["content"].(string); ok && content != "" {
+							return content
+						}
+					}
+				}
+			}
+		}
+	}
+	return fallback
 }
 
 func isSimpleTurn(prompt string, driftScore float64) bool {
@@ -1284,7 +1338,7 @@ func isSimpleTurn(prompt string, driftScore float64) bool {
 		return false
 	}
 	lower := strings.ToLower(prompt)
-	complexMarkers := []string{"architect", "prove", "step by step", "root cause", "security audit"}
+	complexMarkers := []string{"architect", "prove", "step by step", "root cause", "security audit", "synthesize", "synthesis"}
 	for _, marker := range complexMarkers {
 		if strings.Contains(lower, marker) {
 			return false
@@ -1308,19 +1362,34 @@ func (s *Server) applySmartFinOpsRouting(
 		return model, mutatedBody
 	}
 
-	isSimple := isSimpleTurn(promptText, driftScore)
-
-	msgCount := 0
+	userMsgCount := 0
+	turnPrompt := promptText
 	var reqMap map[string]interface{}
 	if err := json.Unmarshal(mutatedBody, &reqMap); err == nil {
 		if msgs, ok := reqMap["messages"].([]interface{}); ok {
-			msgCount = len(msgs)
+			for i := len(msgs) - 1; i >= 0; i-- {
+				if msgMap, ok := msgs[i].(map[string]interface{}); ok {
+					if role, _ := msgMap["role"].(string); role == "user" {
+						userMsgCount++
+						if turnPrompt == promptText {
+							if content, ok := msgMap["content"].(string); ok && content != "" {
+								turnPrompt = content
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
-	isWarmCache := traceCount > 1 || msgCount > 2
+	isSimple := isSimpleTurn(turnPrompt, driftScore)
 
-	// Case A: Cold Cache (Turn 1 / traceCount <= 1 && msgCount <= 2)
+	// A session has a warm multi-turn cache only after the first full user turn completes
+	// (userMsgCount > 1 or traceCount > 1). Keeping all tool-call sub-steps of Turn 1
+	// (where userMsgCount == 1) on the same Fast-Tier model avoids mid-turn model switching.
+	isWarmCache := traceCount > 1 || userMsgCount > 1
+
+	// Case A: Cold Cache (Turn 1 / traceCount <= 1 && userMsgCount <= 1)
 	if !isWarmCache {
 		if isSimple {
 			fastTier := s.pricing.GetFastTier(providerName, model)
@@ -1336,10 +1405,33 @@ func (s *Server) applySmartFinOpsRouting(
 		// Model is pinned to preserve the 90% KV cache read discount.
 		if isSimple && *maxTokensVal > 1024 {
 			*maxTokensVal = 1024
+			if reqMap != nil {
+				if _, hasExplicit := reqMap["max_tokens"]; !hasExplicit {
+					reqMap["max_tokens"] = 1024
+					if updated, err := json.Marshal(reqMap); err == nil {
+						mutatedBody = updated
+					}
+				}
+			}
 			c.Writer.Header().Set("X-Loopers-FinOps-Throttled", "true")
 		}
 	}
 
 	return model, mutatedBody
+}
+
+func computeTotalSavedUSD(actualCost, cacheSavedUSD float64, totalPromptTokens, totalOutputTokens int, origInPrice, origOutPrice float64) float64 {
+	saved := cacheSavedUSD
+	if origInPrice > 0 || origOutPrice > 0 {
+		origCost := (float64(totalPromptTokens)*origInPrice + float64(totalOutputTokens)*origOutPrice) / 1e6
+		if origCost > actualCost {
+			// Counterfactual cost against the original frontier model requested by the client
+			routeSaved := origCost - actualCost
+			if routeSaved > saved {
+				saved = routeSaved
+			}
+		}
+	}
+	return saved
 }
 

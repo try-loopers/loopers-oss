@@ -38,6 +38,7 @@ func callAnthropicCountAPI(ctx context.Context, body []byte, providerKey string)
 
 	req.Header.Set("x-api-key", providerKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-beta", "prompt-caching-2024-07-31")
 	req.Header.Set("content-type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)

@@ -38,8 +38,9 @@ import (
 type mcpCtxKey string
 
 const (
-	mcpSessionIDCtxKey  mcpCtxKey = "mcpSessionID"
-	mcpProxyKeyCtxKey   mcpCtxKey = "mcpProxyKey"
+	mcpSessionIDCtxKey      mcpCtxKey = "mcpSessionID"
+	mcpGhostSessionIDCtxKey mcpCtxKey = "mcpGhostSessionID"
+	mcpProxyKeyCtxKey       mcpCtxKey = "mcpProxyKey"
 	mcpServerNameCtxKey mcpCtxKey = "mcpServerName"
 	mcpToolNameCtxKey   mcpCtxKey = "mcpToolName"
 	mcpMethodCtxKey     mcpCtxKey = "mcpMethod"
@@ -228,6 +229,10 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 
 			if allowed {
 				sessionID, _ := ctx.Value(mcpSessionIDCtxKey).(string)
+				ghostSessionID, _ := ctx.Value(mcpGhostSessionIDCtxKey).(string)
+				if ghostSessionID == "" {
+					ghostSessionID = sessionID
+				}
 				proxyKey, _ := ctx.Value(mcpProxyKeyCtxKey).(string)
 				if proxyKey == "" {
 					proxyKey, _ = ctx.Value(proxyPkg.RawProxyKeyCtx).(string)
@@ -235,7 +240,7 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 				toolName, _ := ctx.Value(mcpToolNameCtxKey).(string)
 
 				// Ghost Tokens Offloading: compress and encrypt large tool results
-				if h.cfg.GhostTokens.Enabled && h.budgetClient != nil && h.budgetClient.GetUnderlyingClient() != nil && sessionID != "" && proxyKey != "" {
+				if h.cfg.GhostTokens.Enabled && h.budgetClient != nil && h.budgetClient.GetUnderlyingClient() != nil && ghostSessionID != "" && proxyKey != "" {
 					thresholdBytes := int(h.cfg.GhostTokens.ThresholdBytes)
 					if thresholdBytes <= 0 {
 						thresholdBytes = 8192
@@ -272,11 +277,11 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 								}
 
 								if len(rawPayload) > 0 {
-									blobID := proxyPkg.GenerateBlobID()
-									ghostKey := proxyPkg.DeriveGhostKey(proxyKey, sessionID)
+									blobID := proxyPkg.ContentBlobID(rawPayload)
+									ghostKey := proxyPkg.DeriveGhostKey(proxyKey, ghostSessionID)
 									enc, encErr := proxyPkg.EncryptGhostBlob(ghostKey, rawPayload)
 									if encErr == nil {
-										rdbKey := fmt.Sprintf("loopers:blob:{%s}:%s:%s", keyHash, sessionID, blobID)
+										rdbKey := fmt.Sprintf("loopers:blob:{%s}:%s:%s", keyHash, ghostSessionID, blobID)
 										if setErr := h.budgetClient.GetUnderlyingClient().Set(req.Context(), rdbKey, enc, time.Duration(ttl)*time.Second).Err(); setErr == nil {
 											stubBytes, stubErr := proxyPkg.CreateGhostStub(toolName, rawPayload, blobID)
 											if stubErr == nil {
@@ -538,9 +543,7 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 	// --- Stateful Session Context ---
 	// Resolve sessionID here (before policy evaluation) so we can populate the taint context.
 	sessionID := c.GetHeader("X-Loopers-Session-ID")
-	if sessionID == "" && len(keyHash) >= 32 {
-		sessionID = fmt.Sprintf("%s-%s-%s-%s-%s", keyHash[0:8], keyHash[8:12], keyHash[12:16], keyHash[16:20], keyHash[20:32])
-	}
+	ghostSessionID := proxyPkg.ResolveGhostSessionID(sessionID, keyHash)
 	var rawProxyKey string
 	if pk, exists := c.Get("ProxyKey"); exists {
 		rawProxyKey, _ = pk.(string)
@@ -899,9 +902,9 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 	// 2.5 Read-Only Tool Memoization
 	memoizeEnabled := h.cfg.MemoizeReadOnly || viper.GetBool("mcp.memoize_read_only")
 	var memoKey string
-	if memoizeEnabled && sessionID != "" && br.Score <= 15 && h.budgetClient != nil {
+	if memoizeEnabled && ghostSessionID != "" && br.Score <= 15 && h.budgetClient != nil {
 		callHash := fmt.Sprintf("%s|%s", toolParams.Name, hashArgs(toolParams.Arguments))
-		memoKey = fmt.Sprintf("loopers:mcp:memo:{%s}:%s:%s", keyHash, sessionID, callHash)
+		memoKey = fmt.Sprintf("loopers:mcp:memo:{%s}:%s:%s", keyHash, ghostSessionID, callHash)
 
 		cachedBytes, err := h.budgetClient.GetUnderlyingClient().Get(c.Request.Context(), memoKey).Bytes()
 		if err == nil && len(cachedBytes) > 0 {
@@ -1036,6 +1039,7 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 	defer toolSpan.End()
 
 	ctx = context.WithValue(ctx, mcpSessionIDCtxKey, sessionID)
+	ctx = context.WithValue(ctx, mcpGhostSessionIDCtxKey, ghostSessionID)
 	ctx = context.WithValue(ctx, mcpProxyKeyCtxKey, rawProxyKey)
 	ctx = context.WithValue(ctx, proxyPkg.RawProxyKeyCtx, rawProxyKey)
 	ctx = context.WithValue(ctx, mcpServerNameCtxKey, serverName)

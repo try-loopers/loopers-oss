@@ -17,6 +17,8 @@ func runScreen(action string) {
 		screenKeys()
 	case "screen_budget":
 		screenBudget()
+	case "screen_context_acceleration":
+		screenContextAcceleration()
 	case "screen_loop":
 		screenLoop()
 	case "screen_mcp":

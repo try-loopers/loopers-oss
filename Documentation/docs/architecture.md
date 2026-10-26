@@ -2,85 +2,117 @@
 id: architecture
 title: Architecture
 sidebar_label: Architecture
-description: How Loopers works as a transparent reverse proxy with atomic Redis budget enforcement.
+description: How Loopers operates as a Dual-Regime AI Firewall with atomic budget leases, threat circuit breaking, and inline Ghost Token acceleration.
 ---
 
 # Architecture Overview
 
-Loopers is designed as a very fast helper that sits between your app and the AI providers. It acts as a proxy. A proxy is like a messenger that takes your messages, checks them, and then hands them to the AI.
+Loopers is designed as a high-performance **Dual-Regime AI Firewall** that sits between your application and AI providers. It acts as a transparent, stateful reverse proxy, executing real-time threat mitigation when agents misbehave ("Bad Days") alongside inline context compression on healthy everyday traffic ("Normal Days") without requiring agent SDK rewrites.
+
+## The Dual-Regime Firewall Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                             Agent Runtime                              │
+│       (Aider / Claude Code / OpenHands / LangChain / Python SDK)       │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ HTTP / SSE (e.g., OPENAI_BASE_URL)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                      Loopers AI Firewall (:8080)                       │
+│                                                                        │
+│ ┌────────────────────────────────────────────────────────────────────┐ │
+│ │          REGIME 1: ROGUE AGENT DEFENSE & THREAT MITIGATION         │ │
+│ │                     ("Bad Days" Protection)                        │ │
+│ │  [1. Key Auth & DPoP] ──► [2. Risk Score & Quarantine Gate]        │ │
+│ │  [3. Syntactic Normalizer] ──► [4. Multi-Turn Drift Containment]   │ │
+│ │  [5. Pre-Call Budget Lease] ──► [6. OPA / YAML Policy Engine & FSM]│ │
+│ │  [7. Multi-Engine Loop Detector] ──► [8. Outbound Semantic DLP]    │ │
+│ └────────────────────────────────────────────────────────────────────┘ │
+│                                   │                                    │
+│ ┌────────────────────────────────────────────────────────────────────┐ │
+│ │         REGIME 2: INLINE CONTEXT ACCELERATION & WIRE FINOPS        │ │
+│ │                    ("Normal Days" Optimization)                    │ │
+│ │  [A. Zero-SDK Session Derivation]                                  │ │
+│ │  [B. Ghost Token Side-Channel Offload (Redis AES-256-GCM / HKDF)]  │ │
+│ │  [C. Dynamic Tail-Hydration (Frontier Synthesis vs Fast-Tier)]     │ │
+│ │  [D. Deterministic Prefix Canonicalizer (KV Cache Maximization)]   │ │
+│ │  [E. Smart Fast-Tier Model Routing & Warm Cache Pinning]           │ │
+│ └────────────────────────────────────────────────────────────────────┘ │
+│                                   │                                    │
+│  Admin Server (:9090): /metrics (Prometheus) | /health                 │
+│  Telemetry: OpenTelemetry Traces (OTLP gRPC/HTTP) | HMAC Webhooks      │
+└───────────────────┬──────────────────────────────────┬─────────────────┘
+                    │                                  │
+                    ▼                                  ▼
+          ┌───────────────────┐              ┌───────────────────┐
+          │     Redis 7+      │              │ Upstream Provider │
+          │ (Atomic Leases,   │              │ (OpenAI, Anthropic│
+          │  Encrypted Ghosts,│              │  Gemini, Bedrock, │
+          │  FSM Session State│              │  DeepSeek, Groq...)│
+          │  Quarantine Keys) │              └───────────────────┘
+          └───────────────────┘
+```
+
+---
 
 ## System Components
 
-Here are the parts that make up Loopers:
-
-* **Your Application**: This is your program or AI agent that wants to send prompts to the AI. It talks directly to Loopers instead of the AI provider.
-* **Loopers Proxy**: This is the core Go program. It intercepts your messages, counts how many words are in them, and checks if you have enough budget left. It does all of this in only 1 or 2 milliseconds, which is extremely fast.
-* **Redis Cache**: This is a database that remembers how much money you have spent. Loopers reserves a large chunk of budget from Redis (a lease) and performs deductions locally in memory, syncing back to Redis every 5 seconds.
-* **AI Provider**: This is the real AI company (like OpenAI or Anthropic) that answers your messages.
+* **Your Application**: Any autonomous AI agent, script, or orchestrator. It connects to Loopers using standard OpenAI, Anthropic, or Gemini client SDKs simply by setting the base URL.
+* **Loopers AI Firewall**: The core Go proxy server. Intercepts traffic in sub-2ms, running security checks, budget leases, token canonicalization, and ghost hydration in memory.
+* **Redis Cache (7+)**: Distributed state backend handling atomic Lua leases, encrypted ghost token blobs (AES-256-GCM), prompt similarity fingerprints, and agent risk identities.
+* **AI Provider**: The upstream LLM provider (OpenRouter, DeepSeek, OpenAI, Anthropic, Gemini, Mistral, Bedrock) processing completions.
 
 ---
 
 ## Request Flow
 
-Here is the step by step path your message takes when you use Loopers:
-
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as Your Application
-    participant Proxy as Loopers Proxy
-    participant Redis as Redis Cache
-    participant LLM as AI Provider
+    actor Client as Agent Application
+    participant Proxy as Loopers AI Firewall
+    participant Redis as Redis State Store
+    participant LLM as Upstream LLM
 
-    Client->>Proxy: Send request with Loopers key and real AI key
-    Proxy->>Proxy: Check local budget lease (fetch from Redis if empty)
-    alt Local lease empty or blocked
-        Proxy-->>Client: Block request with error
-    else Budget Check OK
-        Proxy->>LLM: Forward request with real AI key
-        LLM-->>Proxy: Stream response back
-        Loop Stream Chunk Processing
-            Proxy->>Proxy: Count tokens and calculate cost
-            alt Cost exceeds budget
-                Proxy-->>Client: Cut connection immediately
-            else Cost OK
+    Client->>Proxy: POST /v1/chat/completions (Bearer lp-..., X-Loopers-Provider-Key)
+    Proxy->>Proxy: Zero-SDK Session Derivation & Syntactic Normalization
+    Proxy->>Redis: Check Agent Risk Score & Pre-Call Atomic Budget Lease
+    alt Risk Blocked or Budget Exceeded (Fail-Closed)
+        Proxy-->>Client: 403 Forbidden or 429 Budget Exceeded
+    else Budget Lease OK
+        Proxy->>Proxy: Offload bulky tool outputs to Redis (Ghost Tokens)
+        Proxy->>Proxy: Apply Prefix Canonicalization (sort schemas, normalize whitespace)
+        Proxy->>Proxy: Evaluate Smart Routing Policy (Fast-Tier vs Frontier)
+        Proxy->>LLM: Forward sanitized, canonical request with Provider Key
+        LLM-->>Proxy: Stream response chunks (SSE)
+        Loop Mid-Stream Inspection
+            Proxy->>Proxy: Count tokens & run Outbound Semantic DLP (PII/secrets)
+            alt Mid-generation Budget Breach or Secret Leak
+                Proxy-->>Client: Sever connection immediately & emit security event
+            else Stream OK
                 Proxy-->>Client: Forward response chunk
             end
         end
-        Proxy-->>Proxy: Deduct cost from local lease in memory
+        Proxy->>Redis: Reconcile actual spent cost & release unspent lease
     end
 ```
 
 ---
 
-## Key Security Guarantees
+## Dual-Regime Architectural Guarantees
 
-### Zero Storage of Keys
-Your real AI keys are only kept in the temporary memory of the computer while your request is being sent. They are never saved to a database or written to disk. If someone hacks into Loopers or its database, they will not find any of your real AI keys.
+### Zero Storage of Keys & In-Memory Privacy
+Real provider keys and unencrypted payloads reside strictly in volatile memory during transit. No prompts or keys are persisted to unencrypted disk or persistent databases.
 
-### Fail Closed Design
-If the Redis database or the Loopers program stops working, Loopers shuts the door and blocks all incoming requests. This protects you from spending money when the system cannot check your limits.
+### Fail-Closed Design
+If Redis or the firewall fails, Loopers immediately shuts the door, rejecting incoming calls to protect against unauthorized spend and unshielded network egress.
 
-### Local Lease Concurrency Control
-Loopers uses a local lease mechanism. It reserves a budget lease (default $1.00) from Redis, then performs fast atomic deductions locally in memory for each request. It reconciles spent totals back to Redis via background heartbeats every 5 seconds. This allows processing thousands of requests per second with extremely low latency.
+### Ghost Token Side-Channel Offloading
+Large tool responses (e.g. MCP database dumps or filesystem reads >512 bytes) are encrypted using AES-256-GCM with HKDF-derived keys and stored ephemerally in Redis. In the LLM prompt, they are replaced by ~80-token schema-compliant Ghost Stubs, delivering **65% to 75% input token compression**.
 
----
+### Dynamic Prompt Tail-Hydration
+When an agent reaches a turn requiring frontier synthesis (`!isSimpleTurn`), Loopers automatically hydrates the prompt tail with the full decrypted context (`<loopers_hydrated_context>`), ensuring zero quality degradation for complex reasoning.
 
-## Mid Stream Cutoffs
-
-For streaming responses (where the AI sends back words one by one), Loopers does not just check the budget at the start. It keeps checking while the words are arriving:
-
-1. It catches each small piece of text sent by the AI provider.
-2. It counts how many words are in that piece of text.
-3. It updates the total cost of the request.
-4. If the cost goes over your limit, Loopers cuts the connection immediately.
-
-This means if the AI starts generating a massive response that you did not ask for, Loopers will stop it the moment your limit is reached.
-
----
-
-## Agent Loop Detection
-
-Loopers keeps track of the prompts you send during a session. It hashes each prompt (turning the text into a unique fingerprint using a fuzzy SimHash algorithm) and remembers them in a Redis sliding window. If it sees the same prompt—or a slightly mutated version of it—repeating over and over again within a configurable Hamming distance, it knows your AI agent is stuck in a loop. Loopers will block the session immediately to save your budget.
-
-See the [Session Budgets](./concepts/session-budgets) guide for more details.
+### Deterministic Prefix Canonicalization
+Loopers sorts tool schemas and normalizes variable headers/whitespace so that repeated prompts match the upstream provider's KV cache (Anthropic prompt cache, OpenAI prefix cache), unlocking up to 90% cost savings on cached tokens.
