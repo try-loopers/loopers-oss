@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.22.2](https://github.com/try-loopers/loopers-oss/compare/v2.22.1...v2.22.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **security:** remediate OpenSSF Scorecard NPM vulnerabilities and align org references ([2e9123d](https://github.com/try-loopers/loopers-oss/commit/2e9123d3617fdac8429a06382e831a733aaa5a47))
+* **security:** remediate OpenSSF Scorecard NPM vulnerabilities and align org references ([4831ff9](https://github.com/try-loopers/loopers-oss/commit/4831ff951d25869d7f5cba46e39d5bd38b1ff0f9))
+
 ## [2.22.1](https://github.com/try-loopers/loopers-oss/compare/v2.22.0...v2.22.1) (2026-10-26)
 
 
