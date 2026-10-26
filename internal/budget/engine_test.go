@@ -288,4 +288,3 @@ func TestBudgetCheckAction_JSONDecoding(t *testing.T) {
 		t.Errorf("expected saved_usd 15.75, got %f", daily.SavedUSD)
 	}
 }
-

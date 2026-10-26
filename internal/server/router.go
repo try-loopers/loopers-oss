@@ -1434,4 +1434,3 @@ func computeTotalSavedUSD(actualCost, cacheSavedUSD float64, totalPromptTokens, 
 	}
 	return saved
 }
-

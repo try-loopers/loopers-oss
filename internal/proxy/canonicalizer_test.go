@@ -172,4 +172,3 @@ func TestCanonicalizeRequest_OpenRouterAndAzure(t *testing.T) {
 		assert.True(t, streamOpts["include_usage"].(bool))
 	}
 }
-

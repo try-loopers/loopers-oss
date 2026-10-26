@@ -254,4 +254,3 @@ func TestHydratePromptTail_SkipsToolRoleAndSimpleTurns(t *testing.T) {
 		t.Errorf("expected synthesis turn (shouldHydrate=true, role=='user') to be hydrated")
 	}
 }
-

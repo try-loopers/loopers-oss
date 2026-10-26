@@ -124,5 +124,3 @@ func TestFindModelPrice_DateSuffixAndAliases(t *testing.T) {
 	assert.Equal(t, 5.00, outGemini)
 	assert.Equal(t, "gemini-1.5-flash", store.GetFastTier("gemini", "gemini-1.5-pro-002"))
 }
-
-

@@ -384,4 +384,3 @@ func (s *Store) FastTierCount() int {
 	}
 	return count
 }
-

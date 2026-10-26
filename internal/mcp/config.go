@@ -1,10 +1,10 @@
 package mcp
 
 type Config struct {
-	Enabled        bool                 `mapstructure:"enabled"`
-	MaxRequestSize int64                `mapstructure:"max_request_size"`
-	AllowedMethods []string             `mapstructure:"allowed_methods"`
-	Servers        []ServerConfig       `mapstructure:"servers"`
+	Enabled         bool                 `mapstructure:"enabled"`
+	MaxRequestSize  int64                `mapstructure:"max_request_size"`
+	AllowedMethods  []string             `mapstructure:"allowed_methods"`
+	Servers         []ServerConfig       `mapstructure:"servers"`
 	CircuitBreaker  CircuitBreakerConfig `mapstructure:"circuit_breaker"`
 	Sanitizer       SanitizerConfig      `mapstructure:"sanitizer"`
 	Inspector       InspectorConfig      `mapstructure:"inspector"`

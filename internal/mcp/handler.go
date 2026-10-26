@@ -41,11 +41,11 @@ const (
 	mcpSessionIDCtxKey      mcpCtxKey = "mcpSessionID"
 	mcpGhostSessionIDCtxKey mcpCtxKey = "mcpGhostSessionID"
 	mcpProxyKeyCtxKey       mcpCtxKey = "mcpProxyKey"
-	mcpServerNameCtxKey mcpCtxKey = "mcpServerName"
-	mcpToolNameCtxKey   mcpCtxKey = "mcpToolName"
-	mcpMethodCtxKey     mcpCtxKey = "mcpMethod"
-	mcpServerCtxKey     mcpCtxKey = "mcpServer"
-	mcpMemoKeyCtxKey    mcpCtxKey = "mcpMemoKey"
+	mcpServerNameCtxKey     mcpCtxKey = "mcpServerName"
+	mcpToolNameCtxKey       mcpCtxKey = "mcpToolName"
+	mcpMethodCtxKey         mcpCtxKey = "mcpMethod"
+	mcpServerCtxKey         mcpCtxKey = "mcpServer"
+	mcpMemoKeyCtxKey        mcpCtxKey = "mcpMemoKey"
 )
 
 // sensitiveTaintTools is the set of tool-name substrings that auto-set the
@@ -827,37 +827,37 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 		} else if cbRes != nil {
 			cbCount = cbRes.Count
 			if cbRes.TotalTripped {
-			event.EmitBlockEvent(c.Request.Context(), event.BlockEvent{
-				EventType: "circuit_breaker_trip",
-				SessionID: sessionID,
-				Provider:  serverName,
-				ToolName:  toolParams.Name,
-				Reason:    "mcp_total_tools_exceeded",
-				Detail:    "Total tool invocation limit exceeded",
-			})
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": "total tool invocation limit exceeded",
-				"type":  "mcp_total_tools_exceeded",
-			})
-			return
-		} else if cbRes.Tripped {
-			event.EmitBlockEvent(c.Request.Context(), event.BlockEvent{
-				EventType: "circuit_breaker_trip",
-				SessionID: sessionID,
-				Provider:  serverName,
-				ToolName:  toolParams.Name,
-				Reason:    "mcp_circuit_breaker",
-				Detail:    "Tool-call circuit breaker tripped",
-			})
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": "tool-call circuit breaker tripped",
-				"type":  "mcp_circuit_breaker",
-				"tool":  toolParams.Name,
-			})
-			return
+				event.EmitBlockEvent(c.Request.Context(), event.BlockEvent{
+					EventType: "circuit_breaker_trip",
+					SessionID: sessionID,
+					Provider:  serverName,
+					ToolName:  toolParams.Name,
+					Reason:    "mcp_total_tools_exceeded",
+					Detail:    "Total tool invocation limit exceeded",
+				})
+				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+					"error": "total tool invocation limit exceeded",
+					"type":  "mcp_total_tools_exceeded",
+				})
+				return
+			} else if cbRes.Tripped {
+				event.EmitBlockEvent(c.Request.Context(), event.BlockEvent{
+					EventType: "circuit_breaker_trip",
+					SessionID: sessionID,
+					Provider:  serverName,
+					ToolName:  toolParams.Name,
+					Reason:    "mcp_circuit_breaker",
+					Detail:    "Tool-call circuit breaker tripped",
+				})
+				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+					"error": "tool-call circuit breaker tripped",
+					"type":  "mcp_circuit_breaker",
+					"tool":  toolParams.Name,
+				})
+				return
+			}
 		}
 	}
-}
 
 	// 2. Blast Radius Check
 	if sessionID != "" && h.sessionManager != nil {

@@ -309,4 +309,3 @@ func TestHydratePromptTail_DoesNotTriggerDrift(t *testing.T) {
 	// Must be 200 OK — not false-positively blocked by safety_drift or policy regex!
 	assert.Equal(t, http.StatusOK, w.Code, fmt.Sprintf("Turn 4 failed with %d: %s", w.Code, w.Body.String()))
 }
-
