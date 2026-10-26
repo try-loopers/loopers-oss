@@ -277,9 +277,17 @@ func HydratePromptTail(
 				decrypted = append(decrypted[:maxChars], []byte("\n... [hydrated payload truncated by Loopers budget]")...)
 			}
 		}
-		totalTokensEstimated += estTokens
-
-		block := fmt.Sprintf("<loopers_hydrated_context ref=\"loopers:blob:%s\">\n%s\n</loopers_hydrated_context>", blobID, string(decrypted))
+		var blockBuilder strings.Builder
+		blockBuilder.WriteString("<loopers_hydrated_context ref=\"loopers:blob:")
+		for _, r := range blobID {
+			if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F') {
+				blockBuilder.WriteRune(r)
+			}
+		}
+		blockBuilder.WriteString("\">\n")
+		blockBuilder.Write(decrypted)
+		blockBuilder.WriteString("\n</loopers_hydrated_context>")
+		block := blockBuilder.String()
 		hydratedBlocks = append(hydratedBlocks, block)
 
 		if totalTokensEstimated >= maxHydrationTokens {
