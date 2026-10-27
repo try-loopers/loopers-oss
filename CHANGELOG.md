@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.22.4](https://github.com/try-loopers/loopers-oss/compare/v2.22.3...v2.22.4) (2026-10-27)
+
+
+### Bug Fixes
+
+* **deps:** align open-policy-agent/opa version to 1.21.4 in go.mod ([3694bca](https://github.com/try-loopers/loopers-oss/commit/3694bcacfb543155c175bfc5afee1fec9c19d895))
+
 ## [2.22.3](https://github.com/try-loopers/loopers-oss/compare/v2.22.2...v2.22.3) (2026-10-26)
 
 
