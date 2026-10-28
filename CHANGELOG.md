@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.23.1](https://github.com/try-loopers/loopers-oss/compare/v2.23.0...v2.23.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** remediate Scorecard and OSV security vulnerabilities ([a38a4e8](https://github.com/try-loopers/loopers-oss/commit/a38a4e845989f13a98e7272dceb1bceeef9afcea))
+
 ## [2.23.0](https://github.com/try-loopers/loopers-oss/compare/v2.22.4...v2.23.0) (2026-10-28)
 
 
