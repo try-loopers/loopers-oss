@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.23.0](https://github.com/try-loopers/loopers-oss/compare/v2.22.4...v2.23.0) (2026-10-28)
+
+
+### Features
+
+* add universal MCP stdio wrapper, live FinOps TUI, and documentation ([5222977](https://github.com/try-loopers/loopers-oss/commit/52229771e3a80321dbff0c46ef1940d63ad4ad0a))
+* add universal MCP stdio wrapper, live FinOps TUI, and documentation ([386911e](https://github.com/try-loopers/loopers-oss/commit/386911eea24705fe918d5618f9191ec11890147c))
+
+
+### Bug Fixes
+
+* **gemini:** use in-memory RoundTripper in fuzz test to prevent socket exhaustion ([6dc3a18](https://github.com/try-loopers/loopers-oss/commit/6dc3a1847e21282e0deb8c3d435d89a69715fc44))
+* **gemini:** use in-memory RoundTripper in fuzz test to prevent socket exhaustion ([ff27168](https://github.com/try-loopers/loopers-oss/commit/ff271684112384b74d0b9b1a174caefaac0b6091))
+
 ## [2.22.4](https://github.com/try-loopers/loopers-oss/compare/v2.22.3...v2.22.4) (2026-10-27)
 
 
