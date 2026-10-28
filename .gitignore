@@ -74,3 +74,4 @@ internal/server/signature_integration_test.go
 internal/signature/signer_test.go
 
 firewall-research-deepseek.md
+article_*.md
