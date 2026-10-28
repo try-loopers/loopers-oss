@@ -834,6 +834,9 @@ func (s *Server) handleProxy(c *gin.Context, providerName string) {
 		ctx = context.WithValue(ctx, origInputPriceCtx, origInputPrice)
 		ctx = context.WithValue(ctx, origOutputPriceCtx, origOutputPrice)
 	}
+	if route := c.Writer.Header().Get("X-Loopers-FinOps-Route"); route != "" {
+		ctx = context.WithValue(ctx, finopsRouteCtx, route)
+	}
 	ctx = context.WithValue(ctx, keyNameCtx, meta.Name)
 	if meta.AgentName != "" {
 		ctx = context.WithValue(ctx, agentNameCtx, meta.AgentName)
@@ -883,6 +886,10 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 	cacheWritePrice, _ := ctx.Value(cacheWritePriceCtx).(float64)
 	sessionID, _ := ctx.Value(sessionIDCtx).(string)
 	reqID, _ := ctx.Value(requestIDCtx).(string)
+	finopsRoute, _ := ctx.Value(finopsRouteCtx).(string)
+	if finopsRoute != "" {
+		resp.Header.Set("X-Loopers-FinOps-Route", finopsRoute)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		s.redis.LeaseManager.ReconcileSpend(ctx, keyHash, reservedCost, 0)
@@ -953,6 +960,30 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 					if s.redis != nil {
 						_ = s.redis.RecordSavings(context.Background(), keyHash, savedUSD)
 					}
+				}
+				if s.redis != nil {
+					counterfactualCost := actualCost + savedUSD
+					fastTierSaved := 0.0
+					var fastTierTurns int64
+					if origIn > 0 || origOut > 0 {
+						baseCost := (float64(inTokens)*origIn + float64(outTokens)*origOut) / 1e6
+						if baseCost > actualCost {
+							fastTierSaved = baseCost - actualCost
+							if baseCost > counterfactualCost {
+								counterfactualCost = baseCost
+							}
+						}
+					}
+					if strings.EqualFold(finopsRoute, "fast-tier") {
+						fastTierTurns = 1
+					}
+					_ = s.redis.RecordFinOpsTelemetry(context.Background(), keyHash, sessionID, budget.FinOpsTelemetryDelta{
+						FastTierTurns:     fastTierTurns,
+						FastTierSavedUSD:  fastTierSaved,
+						ActualSpendUSD:    actualCost,
+						CounterfactualUSD: counterfactualCost,
+						NetSavedUSD:       savedUSD,
+					})
 				}
 				if sessionID != "" {
 					sessionSpendKey := fmt.Sprintf("loopers:session:{%s}:%s:spend", keyHash, sessionID)
@@ -1138,12 +1169,40 @@ func (s *Server) modifyResponse(resp *http.Response) error {
 			if savedUSD > 0 {
 				resp.Header.Set("X-Loopers-Saved-USD", fmt.Sprintf("%.6f", savedUSD))
 			}
+			if strings.EqualFold(finopsRoute, "fast-tier") {
+				resp.Header.Set("X-Loopers-FinOps-Route", "fast-tier")
+			}
 		}
 		if savedUSD > 0 {
 			savingsUSDTotal.WithLabelValues(provName, keyHash).Add(savedUSD)
 			if s.redis != nil {
 				_ = s.redis.RecordSavings(context.Background(), keyHash, savedUSD)
 			}
+		}
+		if s.redis != nil {
+			counterfactualCost := actualCost + savedUSD
+			fastTierSaved := 0.0
+			var fastTierTurns int64
+			totTokens := totalInputTokens + cacheReadTokens + cacheWriteTokens
+			if origIn > 0 || origOut > 0 {
+				baseCost := (float64(totTokens)*origIn + float64(totalOutputTokens)*origOut) / 1e6
+				if baseCost > actualCost {
+					fastTierSaved = baseCost - actualCost
+					if baseCost > counterfactualCost {
+						counterfactualCost = baseCost
+					}
+				}
+			}
+			if strings.EqualFold(finopsRoute, "fast-tier") {
+				fastTierTurns = 1
+			}
+			_ = s.redis.RecordFinOpsTelemetry(context.Background(), keyHash, sessionID, budget.FinOpsTelemetryDelta{
+				FastTierTurns:     fastTierTurns,
+				FastTierSavedUSD:  fastTierSaved,
+				ActualSpendUSD:    actualCost,
+				CounterfactualUSD: counterfactualCost,
+				NetSavedUSD:       savedUSD,
+			})
 		}
 
 		if sessionID != "" {

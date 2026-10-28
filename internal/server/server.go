@@ -68,6 +68,7 @@ const (
 	agentNameCtx       serverContextKey = "AgentName"
 	origInputPriceCtx  serverContextKey = "OrigInputPrice"
 	origOutputPriceCtx serverContextKey = "OrigOutputPrice"
+	finopsRouteCtx     serverContextKey = "FinopsRoute"
 )
 
 // Server coordinates the proxy operations and HTTP routing.

@@ -129,6 +129,41 @@ In `internal/server/router.go`, Loopers evaluates incoming turns against model p
 
 ---
 
+## 5. MCP Schema Minification (Discovery Bloat Optimization)
+
+In autonomous agent architectures, Model Context Protocol (MCP) servers expose tools to the agent via `tools/list`. For enterprise tools (such as Notion, GitHub, Slack, or database connectors), servers routinely expose 50 to 70+ granular endpoints.
+
+Each tool comes with full JSON Schema definitions, markdown descriptions, nested type specs, and enum lists. In a standard setup, this represents **150 KB to 200 KB (~40,000+ tokens)** of schema boilerplate that the agent loads into the system prompt context on every single turn.
+
+Loopers intercepts `tools/list` across both HTTP proxies (`internal/mcp/handler.go`) and local stdio child processes (`loopers mcp wrap` in `cmd/loopers/mcp.go`):
+- Trims redundant documentation strings to a compact length (default: 512 bytes).
+- Strips verbose JSON Schema metadata (`$schema`, `title`, `additionalProperties`) while preserving required fields and property type signatures.
+- Strips 40,000+ prompt discovery tokens from the system context on every turn without breaking LLM function calling.
+- Emits atomic telemetry updates to Redis as `schema_tokens_saved`.
+
+---
+
+## 6. Read-Only Tool Memoization (Sub-Millisecond Cache)
+
+Autonomous agents frequently execute repetitive read-only inspections across turns (e.g., checking status, verifying file paths, polling branch state, or re-querying identical database records).
+
+Loopers provides zero-configuration tool memoization:
+- Inspects incoming `tools/call` requests for idempotent read operations. Mutating write operations (`create`, `update`, `delete`, `post`) bypass cache to prevent state desynchronization.
+- Hashes `(server_name, tool_name, canonical_arguments)` to query Redis.
+- Repeated identical queries are served directly from Redis in **< 1 ms** with **$0.00** upstream tool or LLM cost.
+- Recorded live in FinOps telemetry as `tool_memo_hits` and `tool_memo_saved_nano`.
+
+---
+
+## 7. Real-Time FinOps Scorecard TUI
+
+Loopers includes a built-in terminal user interface (TUI) powered by Bubble Tea to monitor FinOps acceleration live:
+- **`● LIVE` Auto-Refresh**: Polls Redis every 1 second with clean Alt-Screen rendering.
+- **Timeframe Aggregations**: Switch instantly between Daily (`1`), Hourly (`2`), Weekly (`3`), Monthly (`4`), and All-Time (`5`).
+- **Verifiable Savings**: Compares actual spend against the counterfactual unoptimized baseline, tracking exact net dollars saved and acceleration breakdown across Ghost Tokens, Fast-Tier Routing, Tool Memoization, and Schema Minification.
+
+---
+
 ## Configuration Reference
 
 Enable and tune Inline Context Acceleration in `loopers.yaml`:

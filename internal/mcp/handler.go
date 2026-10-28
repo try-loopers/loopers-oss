@@ -161,6 +161,17 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 			resp.Body = io.NopCloser(bytes.NewReader(sanitized))
 			resp.ContentLength = int64(len(sanitized))
 			resp.Header.Set("Content-Length", strconv.Itoa(len(sanitized)))
+
+			if keyHash, ok := ctx.Value(proxyPkg.ProxyKeyHashCtx).(string); ok && keyHash != "" && h.budgetClient != nil {
+				savedBytes := int64(len(body) - len(sanitized))
+				if savedBytes > 0 {
+					savedTokens := savedBytes / 4
+					sessionID, _ := ctx.Value(mcpSessionIDCtxKey).(string)
+					_ = h.budgetClient.RecordFinOpsTelemetry(req.Context(), keyHash, sessionID, budget.FinOpsTelemetryDelta{
+						SchemaTokensSaved: savedTokens,
+					})
+				}
+			}
 		} else {
 			resp.Body = io.NopCloser(bytes.NewReader(body))
 		}
@@ -302,6 +313,16 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 													resp.ContentLength = int64(len(body))
 													resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
 													resp.Header.Set("X-Loopers-Ghost-Token", blobID)
+
+													savedBytes := int64(len(rawPayload) - len(stubBytes))
+													if savedBytes > 0 && h.budgetClient != nil {
+														savedTokens := savedBytes / 4
+														_ = h.budgetClient.RecordFinOpsTelemetry(req.Context(), keyHash, ghostSessionID, budget.FinOpsTelemetryDelta{
+															GhostTokensSaved:  savedTokens,
+															GhostPayloadBytes: savedBytes,
+															GhostStubsCreated: 1,
+														})
+													}
 												}
 											}
 										}
@@ -487,7 +508,7 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 	if err != nil || req == nil {
 		// Pass-through transparently if not JSON-RPC
 		h.signRequest(c, body)
-		h.forward(c, targetURL, nil, 0)
+		h.forward(c, targetURL, &keyHash, 0)
 		return
 	}
 
@@ -508,7 +529,7 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), mcpServerCtxKey, serverName))
 		// Pass-through transparently for allowed non-tools/call methods
 		h.signRequest(c, body)
-		h.forward(c, targetURL, nil, 0)
+		h.forward(c, targetURL, &keyHash, 0)
 		return
 	}
 
@@ -935,6 +956,14 @@ func (h *Handler) HandleMCP(c *gin.Context) {
 						if h.budgetClient != nil {
 							_ = h.budgetClient.RecordSavings(context.Background(), keyHash, savedCost)
 						}
+					}
+					if h.budgetClient != nil {
+						_ = h.budgetClient.RecordFinOpsTelemetry(context.Background(), keyHash, sessionID, budget.FinOpsTelemetryDelta{
+							ToolMemoHits:      1,
+							ToolMemoSavedUSD:  savedCost,
+							CounterfactualUSD: savedCost,
+							NetSavedUSD:       savedCost,
+						})
 					}
 					c.Data(http.StatusOK, "application/json", updatedResp)
 					return

@@ -13,8 +13,12 @@ The loopers command line application allows you to manage keys, budgets, and the
 
 | Command | Description |
 |---|---|
+| loopers | Interactive terminal UI (TUI) dashboard with live auto-refreshing FinOps Scorecard |
 | loopers init | Interactive setup wizard that generates loopers.yaml and docker-compose.yml |
 | loopers serve | Start the proxy server |
+| loopers mcp wrap | Transparently wrap local subprocess MCP tools over stdio with Schema Minifier & Ghost Tokens |
+| loopers mcp bridge | Bridge local standard I/O (stdin/stdout) JSON-RPC agents to the Loopers HTTP firewall |
+| loopers exec | Wrap and execute agent CLI binaries with transparent proxy injection |
 | loopers verify | Audit JSON execution traces against OPA policies and Policy Cards |
 | loopers doctor | Diagnose Loopers configuration and connectivity |
 | loopers version | Print version information |
@@ -225,5 +229,86 @@ Audits and replays recorded execution traces (`.json`) against declarative YAML 
 **Example:**
 ```bash
 loopers verify --trace ./traces/session.json --presets owasp_llm_top10,nist_ai_rmf,eu_ai_act
+```
+
+---
+
+## Interactive TUI (loopers)
+
+```bash
+loopers
+```
+
+Launches an interactive, full-screen Bubble Tea terminal interface with keyboard navigation.
+
+### FinOps Scorecard View
+
+Select **FinOps Scorecard** from the main menu to open the real-time cost acceleration dashboard:
+- **`● LIVE` Auto-Refresh**: Polls Redis every 1 second without terminal flickering.
+- **Timeframe Hotkeys**:
+  - `1`: Daily (Today)
+  - `2`: Hourly (Current Hour)
+  - `3`: Weekly (Current Week)
+  - `4`: Monthly (Current Month)
+  - `5`: All-Time Cumulative
+  - `Tab`: Cycle through timeframes sequentially
+  - `r`: Force manual refresh
+  - `q` / `Esc`: Return to main menu
+- **Metrics Displayed**:
+  - **Total Spend**: Actual dollar spend billed by upstream providers.
+  - **Counterfactual Spend**: What the workload would have cost without Loopers optimizations.
+  - **Net Savings**: Dollar amount and percentage saved on the active timeframe.
+  - **Ghost Tokens**: Total input tokens offloaded into Redis stubs and raw payload bytes cached.
+  - **Fast-Tier Routing**: Turns routed to lightweight models and dollars saved.
+  - **Tool Memoization**: Idempotent read calls served from cache and dollars saved.
+  - **Schema Minifier**: Prompt discovery tokens stripped from `tools/list` responses.
+
+---
+
+## mcp wrap
+
+```bash
+loopers mcp wrap --server <name> --key <key> [flags] -- <command...>
+```
+
+Spawns a local MCP server subprocess, intercepts its JSON-RPC standard I/O streams, and transparently applies:
+1. **Schema Minification**: Strips redundant JSON Schema boilerplate, markdown docs, and enum arrays from `tools/list` responses before passing them to the agent.
+2. **Ghost Tokens**: Intercepts `tools/call` response payloads. If the payload exceeds `--threshold` (default 4KB), it is encrypted into Redis and replaced with an ~80-token Ghost Stub.
+3. **Telemetry Recording**: Atomically records token savings directly to the active agent key's Redis FinOps registry.
+
+**Flags:**
+
+| Flag | Shorthand | Type | Default | Description |
+|---|---|---|---|---|
+| `--server` | `-s` | string | `"local"` | Logical name of the MCP server for metrics partitioning |
+| `--key` | `-k` | string | `""` | Loopers agent proxy key (defaults to `LOOPERS_PROXY_KEY` env) |
+| `--threshold` | `-t` | int64 | `4096` | Payload size threshold in bytes to trigger Ghost Token offloading |
+
+**Example (ZeroClaw / Claude Desktop / Cursor):**
+```bash
+loopers mcp wrap --server notion --key lp-your-proxy-key -- npx.cmd -y mcp-remote https://mcp.notion.com/mcp
+```
+
+---
+
+## mcp bridge
+
+```bash
+loopers mcp bridge --server <name> --key <key> [flags]
+```
+
+Provides a standard input/output (`stdio`) to HTTP bridge for local agents that only support stdio MCP servers, mapping JSON-RPC calls over stdin/stdout to the remote Loopers AI Firewall proxy endpoint (`/mcp/<server>/`).
+
+**Flags:**
+
+| Flag | Shorthand | Type | Default | Description |
+|---|---|---|---|---|
+| `--server` | `-s` | string | `""` | **Required.** Name of the target MCP server configured in `loopers.yaml` |
+| `--key` | `-k` | string | `""` | Loopers agent proxy key (defaults to `LOOPERS_PROXY_KEY` env) |
+| `--url` | `-u` | string | `"http://127.0.0.1:8080"` | Base URL of the Loopers AI Firewall proxy server |
+
+**Example:**
+```bash
+loopers mcp bridge --server enterprise --key lp-your-proxy-key --url http://127.0.0.1:8080
 ```
 

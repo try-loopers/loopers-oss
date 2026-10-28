@@ -27,6 +27,7 @@ var menuItems = []struct {
 	{"Diagnostics", "screen_doctor"},
 	{"Keys & Agent Identity", "screen_keys"},
 	{"Budgets & Rate Limits", "screen_budget"},
+	{"FinOps & Savings Scorecard", "screen_finops"},
 	{"Context Acceleration & Ghost Tokens", "screen_context_acceleration"},
 	{"Loop Detection", "screen_loop"},
 	{"MCP Governance & Injection Wall", "screen_mcp"},
