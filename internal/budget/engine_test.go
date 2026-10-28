@@ -375,4 +375,3 @@ func TestRecordFinOpsTelemetryAndGetStatus(t *testing.T) {
 		t.Errorf("expected legacy budget saved_usd 0.55, got %f", budgetStatus["daily"].SavedUSD)
 	}
 }
-

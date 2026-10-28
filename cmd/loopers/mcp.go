@@ -23,10 +23,10 @@ import (
 )
 
 var (
-	mcpServerName   string
-	mcpProxyURL     string
-	mcpProxyKey     string
-	mcpGhostThresh  int64
+	mcpServerName  string
+	mcpProxyURL    string
+	mcpProxyKey    string
+	mcpGhostThresh int64
 )
 
 var mcpCmd = &cobra.Command{

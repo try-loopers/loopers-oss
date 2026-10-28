@@ -229,26 +229,26 @@ type WindowStatus struct {
 // FinOpsRecord contains fine-grained breakdown of all optimization metrics.
 type FinOpsRecord struct {
 	// Ghost Token Metrics
-	GhostTokensSaved  int64   `json:"ghost_tokens_saved"`
-	GhostPayloadBytes int64   `json:"ghost_payload_bytes"`
-	GhostStubsCreated int64   `json:"ghost_stubs_created"`
+	GhostTokensSaved  int64 `json:"ghost_tokens_saved"`
+	GhostPayloadBytes int64 `json:"ghost_payload_bytes"`
+	GhostStubsCreated int64 `json:"ghost_stubs_created"`
 
 	// Schema Minification Metrics
-	SchemaTokensSaved int64   `json:"schema_tokens_saved"`
+	SchemaTokensSaved int64 `json:"schema_tokens_saved"`
 
 	// Fast-Tier Model Routing Metrics
-	FastTierTurns     int64   `json:"fast_tier_turns"`
-	FastTierSavedUSD  float64 `json:"fast_tier_saved_usd"`
+	FastTierTurns    int64   `json:"fast_tier_turns"`
+	FastTierSavedUSD float64 `json:"fast_tier_saved_usd"`
 
 	// MCP Tool Memoization Metrics
-	ToolMemoHits      int64   `json:"tool_memo_hits"`
-	ToolMemoSavedUSD  float64 `json:"tool_memo_saved_usd"`
+	ToolMemoHits     int64   `json:"tool_memo_hits"`
+	ToolMemoSavedUSD float64 `json:"tool_memo_saved_usd"`
 
 	// Overall Cost Ledger
 	ActualSpendUSD    float64 `json:"actual_spend_usd"`
 	CounterfactualUSD float64 `json:"counterfactual_usd"` // Baseline cost if unoptimized
-	NetSavedUSD       float64 `json:"net_saved_usd"`       // Total dollars saved
-	SavingsPercentage float64 `json:"savings_percentage"`  // (NetSavedUSD / CounterfactualUSD) * 100
+	NetSavedUSD       float64 `json:"net_saved_usd"`      // Total dollars saved
+	SavingsPercentage float64 `json:"savings_percentage"` // (NetSavedUSD / CounterfactualUSD) * 100
 }
 
 // FinOpsTelemetryDelta represents an incremental delta emitted during request processing.
