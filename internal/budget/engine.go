@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"github.com/try-loopers/loopers-oss/internal/cache"
 	"golang.org/x/sync/singleflight"
@@ -223,6 +224,205 @@ type WindowStatus struct {
 	Limit        float64 `json:"limit"` // 0 if not configured
 	CurrentSpend float64 `json:"current_spend"`
 	SavedUSD     float64 `json:"saved_usd,omitempty"`
+}
+
+// FinOpsRecord contains fine-grained breakdown of all optimization metrics.
+type FinOpsRecord struct {
+	// Ghost Token Metrics
+	GhostTokensSaved  int64 `json:"ghost_tokens_saved"`
+	GhostPayloadBytes int64 `json:"ghost_payload_bytes"`
+	GhostStubsCreated int64 `json:"ghost_stubs_created"`
+
+	// Schema Minification Metrics
+	SchemaTokensSaved int64 `json:"schema_tokens_saved"`
+
+	// Fast-Tier Model Routing Metrics
+	FastTierTurns    int64   `json:"fast_tier_turns"`
+	FastTierSavedUSD float64 `json:"fast_tier_saved_usd"`
+
+	// MCP Tool Memoization Metrics
+	ToolMemoHits     int64   `json:"tool_memo_hits"`
+	ToolMemoSavedUSD float64 `json:"tool_memo_saved_usd"`
+
+	// Overall Cost Ledger
+	ActualSpendUSD    float64 `json:"actual_spend_usd"`
+	CounterfactualUSD float64 `json:"counterfactual_usd"` // Baseline cost if unoptimized
+	NetSavedUSD       float64 `json:"net_saved_usd"`      // Total dollars saved
+	SavingsPercentage float64 `json:"savings_percentage"` // (NetSavedUSD / CounterfactualUSD) * 100
+}
+
+// FinOpsTelemetryDelta represents an incremental delta emitted during request processing.
+type FinOpsTelemetryDelta struct {
+	GhostTokensSaved  int64
+	GhostPayloadBytes int64
+	GhostStubsCreated int64
+	SchemaTokensSaved int64
+	FastTierTurns     int64
+	FastTierSavedUSD  float64
+	ToolMemoHits      int64
+	ToolMemoSavedUSD  float64
+	ActualSpendUSD    float64
+	CounterfactualUSD float64
+	NetSavedUSD       float64
+}
+
+func parseFinOpsRecord(data map[string]string) FinOpsRecord {
+	var rec FinOpsRecord
+	if data == nil {
+		return rec
+	}
+	rec.GhostTokensSaved, _ = strconv.ParseInt(data["ghost_tokens_saved"], 10, 64)
+	rec.GhostPayloadBytes, _ = strconv.ParseInt(data["ghost_payload_bytes"], 10, 64)
+	rec.GhostStubsCreated, _ = strconv.ParseInt(data["ghost_stubs_created"], 10, 64)
+	rec.SchemaTokensSaved, _ = strconv.ParseInt(data["schema_tokens_saved"], 10, 64)
+	rec.FastTierTurns, _ = strconv.ParseInt(data["fast_tier_turns"], 10, 64)
+	rec.ToolMemoHits, _ = strconv.ParseInt(data["tool_memo_hits"], 10, 64)
+
+	if v, err := strconv.ParseInt(data["fast_tier_saved_nano"], 10, 64); err == nil {
+		rec.FastTierSavedUSD = FromNano(v)
+	}
+	if v, err := strconv.ParseInt(data["tool_memo_saved_nano"], 10, 64); err == nil {
+		rec.ToolMemoSavedUSD = FromNano(v)
+	}
+	if v, err := strconv.ParseInt(data["actual_spend_nano"], 10, 64); err == nil {
+		rec.ActualSpendUSD = FromNano(v)
+	}
+	if v, err := strconv.ParseInt(data["counterfactual_nano"], 10, 64); err == nil {
+		rec.CounterfactualUSD = FromNano(v)
+	}
+	if v, err := strconv.ParseInt(data["net_saved_nano"], 10, 64); err == nil {
+		rec.NetSavedUSD = FromNano(v)
+	}
+
+	if rec.CounterfactualUSD > 0 {
+		rec.SavingsPercentage = (rec.NetSavedUSD / rec.CounterfactualUSD) * 100.0
+		if rec.SavingsPercentage > 100.0 {
+			rec.SavingsPercentage = 100.0
+		}
+	} else if rec.NetSavedUSD > 0 && rec.ActualSpendUSD == 0 {
+		rec.SavingsPercentage = 100.0
+	}
+
+	return rec
+}
+
+// RecordFinOpsTelemetry atomically records fine-grained FinOps savings across sliding windows,
+// all-time ledger, and an optional session key in Redis.
+func (c *Client) RecordFinOpsTelemetry(ctx context.Context, keyHash, sessionID string, delta FinOpsTelemetryDelta) error {
+	now := time.Now().UTC()
+	windows := getWindowConfigs(keyHash, now)
+	pipe := c.rdb.Pipeline()
+
+	applyDeltaToHash := func(key string, ttl time.Duration) {
+		if delta.GhostTokensSaved > 0 {
+			pipe.HIncrBy(ctx, key, "ghost_tokens_saved", delta.GhostTokensSaved)
+		}
+		if delta.GhostPayloadBytes > 0 {
+			pipe.HIncrBy(ctx, key, "ghost_payload_bytes", delta.GhostPayloadBytes)
+		}
+		if delta.GhostStubsCreated > 0 {
+			pipe.HIncrBy(ctx, key, "ghost_stubs_created", delta.GhostStubsCreated)
+		}
+		if delta.SchemaTokensSaved > 0 {
+			pipe.HIncrBy(ctx, key, "schema_tokens_saved", delta.SchemaTokensSaved)
+		}
+		if delta.FastTierTurns > 0 {
+			pipe.HIncrBy(ctx, key, "fast_tier_turns", delta.FastTierTurns)
+		}
+		if delta.FastTierSavedUSD > 0 {
+			pipe.HIncrBy(ctx, key, "fast_tier_saved_nano", ToNano(delta.FastTierSavedUSD))
+		}
+		if delta.ToolMemoHits > 0 {
+			pipe.HIncrBy(ctx, key, "tool_memo_hits", delta.ToolMemoHits)
+		}
+		if delta.ToolMemoSavedUSD > 0 {
+			pipe.HIncrBy(ctx, key, "tool_memo_saved_nano", ToNano(delta.ToolMemoSavedUSD))
+		}
+		if delta.ActualSpendUSD > 0 {
+			pipe.HIncrBy(ctx, key, "actual_spend_nano", ToNano(delta.ActualSpendUSD))
+		}
+		if delta.CounterfactualUSD > 0 {
+			pipe.HIncrBy(ctx, key, "counterfactual_nano", ToNano(delta.CounterfactualUSD))
+		}
+		if delta.NetSavedUSD > 0 {
+			pipe.HIncrBy(ctx, key, "net_saved_nano", ToNano(delta.NetSavedUSD))
+		}
+		if ttl > 0 {
+			pipe.Expire(ctx, key, ttl)
+		}
+	}
+
+	// 1. Sliding Windows
+	savedNano := ToNano(delta.NetSavedUSD)
+	for _, w := range windows {
+		finopsKey := strings.Replace(w.Key, "loopers:spend:", "loopers:finops:", 1)
+		applyDeltaToHash(finopsKey, time.Duration(w.TTL)*time.Second)
+
+		// Backward-compatibility: also update legacy loopers:saved key
+		if savedNano > 0 {
+			savedKey := strings.Replace(w.Key, "loopers:spend:", "loopers:saved:", 1)
+			pipe.IncrBy(ctx, savedKey, savedNano)
+			pipe.Expire(ctx, savedKey, time.Duration(w.TTL)*time.Second)
+		}
+	}
+
+	// 2. All-Time Key
+	applyDeltaToHash(fmt.Sprintf("loopers:finops:{%s}:total", keyHash), 0)
+
+	// 3. Session Key (24h retention)
+	if sessionID != "" {
+		sessionKey := fmt.Sprintf("loopers:session:{%s}:%s:finops", keyHash, sessionID)
+		applyDeltaToHash(sessionKey, 24*time.Hour)
+	}
+
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// GetFinOpsStatus returns the fine-grained FinOps breakdown across all 5 sliding windows and all-time total.
+func (c *Client) GetFinOpsStatus(ctx context.Context, keyHash string) (map[string]FinOpsRecord, error) {
+	now := time.Now().UTC()
+	windows := getWindowConfigs(keyHash, now)
+	pipe := c.rdb.Pipeline()
+
+	windowCmds := make(map[string]*redis.MapStringStringCmd)
+	for _, w := range windows {
+		finopsKey := strings.Replace(w.Key, "loopers:spend:", "loopers:finops:", 1)
+		windowCmds[w.Name] = pipe.HGetAll(ctx, finopsKey)
+	}
+	totalCmd := pipe.HGetAll(ctx, fmt.Sprintf("loopers:finops:{%s}:total", keyHash))
+
+	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("failed to fetch finops status: %w", err)
+	}
+
+	status := make(map[string]FinOpsRecord)
+	for name, cmd := range windowCmds {
+		res, _ := cmd.Result()
+		status[name] = parseFinOpsRecord(res)
+	}
+
+	totRes, _ := totalCmd.Result()
+	status["total"] = parseFinOpsRecord(totRes)
+
+	return status, nil
+}
+
+// GetSessionFinOps returns the FinOps scorecard for a specific active or historical session.
+func (c *Client) GetSessionFinOps(ctx context.Context, keyHash, sessionID string) (*FinOpsRecord, error) {
+	if sessionID == "" {
+		return nil, nil
+	}
+	sessionKey := fmt.Sprintf("loopers:session:{%s}:%s:finops", keyHash, sessionID)
+	data, err := c.rdb.HGetAll(ctx, sessionKey).Result()
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("failed to fetch session finops: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, nil
+	}
+	rec := parseFinOpsRecord(data)
+	return &rec, nil
 }
 
 // RecordSavings increments counterfactual savings across all active windows in Redis.

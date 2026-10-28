@@ -160,3 +160,72 @@ func PrintLogo() {
 	fmt.Println(row2)
 	fmt.Println()
 }
+
+func RenderFinOpsScorecard(title string, actualSpend, counterfactualSpend, netSaved, savingsPct float64, ghostTokens, ghostBytes int64, fastTierTurns int64, fastTierSaved float64, toolMemoHits int64, toolMemoSaved float64, schemaTokens int64) string {
+	var sb strings.Builder
+
+	headerStyle := lipgloss.NewStyle().Foreground(colorTextPrimary).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(colorTextSecondary).Width(24)
+	valStyle := lipgloss.NewStyle().Foreground(colorTextPrimary).Bold(true)
+	greenValStyle := lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
+
+	sb.WriteString(headerStyle.Render("  "+title) + "\n\n")
+
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("Total Spend:"), valStyle.Render(fmt.Sprintf("$%.4f", actualSpend))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("Counterfactual Spend:"), valStyle.Render(fmt.Sprintf("$%.4f", counterfactualSpend))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n\n", labelStyle.Render("Net Savings:"), greenValStyle.Render(fmt.Sprintf("$%.4f (%.1f%% saved)", netSaved, savingsPct))))
+
+	sb.WriteString(headerStyle.Render("  FinOps Acceleration Breakdown:") + "\n")
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("  • Ghost Tokens:"), valStyle.Render(fmt.Sprintf("%d tokens offloaded (%s payload cached)", ghostTokens, FormatBytes(ghostBytes)))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("  • Fast-Tier Routing:"), valStyle.Render(fmt.Sprintf("%d turns routed ($%.4f saved)", fastTierTurns, fastTierSaved))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("  • Tool Memoization:"), valStyle.Render(fmt.Sprintf("%d idempotent calls ($%.4f saved)", toolMemoHits, toolMemoSaved))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("  • Schema Minifier:"), valStyle.Render(fmt.Sprintf("%d prompt discovery tokens stripped", schemaTokens))))
+
+	return styleCardBorder.Render(sb.String())
+}
+
+func PrintFinOpsScorecard(title string, actualSpend, counterfactualSpend, netSaved, savingsPct float64, ghostTokens, ghostBytes int64, fastTierTurns int64, fastTierSaved float64, toolMemoHits int64, toolMemoSaved float64, schemaTokens int64) {
+	fmt.Println(RenderFinOpsScorecard(title, actualSpend, counterfactualSpend, netSaved, savingsPct, ghostTokens, ghostBytes, fastTierTurns, fastTierSaved, toolMemoHits, toolMemoSaved, schemaTokens))
+}
+
+func PrintFinOpsExitSummary(requests int, actualSpend, counterfactualSpend, netSaved, savingsPct float64, ghostTokens int64, fastTierTurns int64, toolMemoHits int64) {
+	var sb strings.Builder
+
+	title := lipgloss.NewStyle().Foreground(colorTextPrimary).Bold(true).Render("LOOPERS FINOPS SESSION SUMMARY")
+	sb.WriteString("  " + title + "\n\n")
+
+	labelStyle := lipgloss.NewStyle().Foreground(colorTextSecondary).Width(22)
+	valStyle := lipgloss.NewStyle().Foreground(colorTextPrimary).Bold(true)
+	greenValStyle := lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
+
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("Requests Intercepted:"), valStyle.Render(fmt.Sprintf("%d turns", requests))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("Actual Spend:"), valStyle.Render(fmt.Sprintf("$%.4f", actualSpend))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("Counterfactual Spend:"), valStyle.Render(fmt.Sprintf("$%.4f", counterfactualSpend))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n\n", labelStyle.Render("Net Savings:"), greenValStyle.Render(fmt.Sprintf("$%.4f (%.1f%% saved)", netSaved, savingsPct))))
+
+	sb.WriteString(lipgloss.NewStyle().Foreground(colorTextSecondary).Render("  Optimizations Active:") + "\n")
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("  • Ghost Tokens:"), valStyle.Render(fmt.Sprintf("%d context tokens offloaded", ghostTokens))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("  • Fast-Tier Routing:"), valStyle.Render(fmt.Sprintf("%d discovery turns accelerated", fastTierTurns))))
+	sb.WriteString(fmt.Sprintf("  %s%s\n", labelStyle.Render("  • Tool Memoization:"), valStyle.Render(fmt.Sprintf("%d idempotent reads served (<4ms)", toolMemoHits))))
+
+	border := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorBorderStrong).
+		Padding(0, 1)
+
+	fmt.Println()
+	fmt.Println(border.Render(sb.String()))
+}
+
+func FormatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}

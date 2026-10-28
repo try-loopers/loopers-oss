@@ -23,7 +23,7 @@ Loopers is the bare-metal AI Firewall for the Agentic Era. It is written in Go a
 - **Outbound Semantic DLP Gate**: Intercepts outbound LLM completion bodies across both non-streaming JSON envelopes and SSE streaming chunks. Masking replaces sensitive PII/network tokens with `***` and recalculates Content-Length headers without breaking JSON syntax; quarantine severs the connection with HTTP 403 or error SSE events, registers 1-hour Redis TTL lockouts, and increments persistent risk score (+30).
 - **Sub-150µs ZSP Token Validation**: Ephemeral Agent Delegation JWTs and DPoP (RFC 9449) proofs are verified statelessly in under 150 microseconds.
 - **Fail-Safe Self-Correction**: When an OPA policy blocks an MCP tool call, Loopers returns a valid MCP JSON-RPC 2.0 error object at HTTP 200 (code -32001) with header `X-Loopers-Policy-Block: true`, allowing LLMs to receive the denial as tool output and self-correct instead of crashing on HTTP 403.
-- **Inline Context Acceleration ("Normal Days" Optimization)**: Side-channel Ghost Token offloading (`internal/proxy/ghost.go`) encrypts bulky tool outputs (>512B) with AES-256-GCM / HKDF into Redis and injects ~80-token Ghost Stubs, compressing input tokens by 65%–75% with conditional tail-hydration on frontier synthesis. Deterministic prefix canonicalizer (`internal/proxy/canonicalizer.go`) stabilizes tool schemas and whitespace for 90% prompt cache hits. Smart fast-tier routing maps simple turns to lightweight models while preserving warm-cache pinning.
+- **Inline Context Acceleration ("Normal Days" Optimization)**: Side-channel Ghost Token offloading (`internal/proxy/ghost.go`) encrypts bulky tool outputs (>512B) with AES-256-GCM / HKDF into Redis and injects ~80-token Ghost Stubs, compressing input tokens by 65%–75% with conditional tail-hydration on frontier synthesis. Deterministic prefix canonicalizer (`internal/proxy/canonicalizer.go`) stabilizes tool schemas and whitespace for 90% prompt cache hits. Smart fast-tier routing maps simple turns to lightweight models while preserving warm-cache pinning. **MCP Schema Minifier (`cmd/loopers/mcp.go` & `internal/mcp/sanitizer.go`)** dynamically intercepts `tools/list` handshakes across both HTTP and local stdio pipes, trimming redundant JSON Schema meta-tags, verbose documentation, and enums to save tens of thousands of prompt discovery tokens on every turn while preserving 100% parameter validity. **Read-Only Tool Memoization** caches idempotent tool calls in Redis, returning repeat queries in <1ms for $0.
 - **Shadow Mode**: Set `server.shadow_mode: true` to run the firewall in observation-only mode — logs and records policy violations without blocking traffic. Useful for auditing policies against live workloads before enforcing.
 
 ---
@@ -44,7 +44,9 @@ Loopers is the bare-metal AI Firewall for the Agentic Era. It is written in Go a
 ```
 .
 ├── cmd/
-│   ├── loopers/                   # CLI entrypoint (serve, keys, budget, init, version)
+│   ├── loopers/                   # CLI entrypoint (serve, keys, budget, init, mcp wrap/bridge, TUI screens)
+│   │   ├── mcp.go                 # Universal stdio MCP bridge and transparent subprocess wrapper
+│   │   └── screen_finops.go       # Live Bubble Tea FinOps scorecard TUI with 1s auto-refresh ticker
 │   └── pricing-validator/         # Pricing schema validator CLI
 ├── internal/                      # Core private Go packages
 │   ├── a2a/                       # Agent-to-Agent trust handoff & escalation broker
@@ -206,6 +208,42 @@ set LOOPERS_PROVIDER=openrouter
 set OPENAI_API_KEY=sk-or-v1-YOUR_KEY
 
 loopers exec --model-override "google/gemma-2-9b-it:free" -- opencode
+```
+
+**Local MCP Stdio Process Wrapper (`loopers mcp wrap`):**
+Transparently intercepts child MCP processes spawned by local agent frameworks (e.g. ZeroClaw, Claude Desktop, Cursor) over standard I/O pipes. Minifies discovery schemas in `tools/list`, offloads payloads >4KB into Redis Ghost Stubs, and records real-time FinOps telemetry directly to Redis.
+```bash
+loopers mcp wrap --server <server_name> --key <proxy_key> [--threshold <bytes>] -- <child_command...>
+```
+Flags:
+- `--server, -s` — logical name of the MCP server for metrics and routing
+- `--key, -k` — Loopers agent key (defaults to `LOOPERS_PROXY_KEY` env)
+- `--threshold, -t` — payload size threshold in bytes to trigger Ghost Token offloading (default: 4096)
+
+Example:
+```bash
+loopers mcp wrap --server notion --key lp-xxx -- npx.cmd -y mcp-remote https://mcp.notion.com/mcp
+```
+
+**Local MCP Stdio Gateway Bridge (`loopers mcp bridge`):**
+Maps standard I/O (stdin/stdout JSON-RPC) from agent clients to the Loopers HTTP firewall MCP proxy.
+```bash
+loopers mcp bridge --server <server_name> --key <proxy_key> [--url <proxy_url>]
+```
+Flags:
+- `--server, -s` (required) — name of the MCP server configured in `loopers.yaml`
+- `--key, -k` — Loopers agent key (defaults to `LOOPERS_PROXY_KEY` env)
+- `--url, -u` — Base URL of the Loopers AI Firewall proxy (default: `http://127.0.0.1:8080`)
+
+Example:
+```bash
+loopers mcp bridge --server enterprise --key lp-xxx --url http://127.0.0.1:8080
+```
+
+**Interactive FinOps & Admin TUI (`loopers`):**
+Launches the full-screen Bubble Tea terminal interface with live 1-second auto-refreshing FinOps Scorecard, timeframe switching hotkeys (`1`–`5`, `Tab`, `r`), and real-time acceleration breakdown (Spend, Counterfactual Baseline, Net Savings, Ghost Tokens, Tool Memoization, Schema Minifier).
+```bash
+loopers
 ```
 
 **Verify Session Trace Compliance:**

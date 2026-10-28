@@ -79,14 +79,18 @@ loopers budget set <HASH> --hourly 1.00 --daily 5.00
 
 ## 4. Route Traffic Through Loopers
 
-Now, simply point your agent or application to Loopers instead of the direct MCP server.
+Loopers supports two primary integration topologies: **Remote HTTP MCP Routing** and **Local Stdio Process Wrapping**.
 
-If your Loopers proxy is running on `http://localhost:8080`, your new MCP endpoint becomes:
+---
+
+### Option A: Remote HTTP MCP Gateway
+
+If your Loopers proxy is running on `http://localhost:8080`, point your HTTP-based agent client directly to:
 `http://localhost:8080/mcp/<server-name>/`
 
-### Example Request
+#### Example Request
 
-Here is how you would send a `tools/call` request through Loopers to the "github" MCP server we configured earlier:
+Send a `tools/call` JSON-RPC request through Loopers to the "github" MCP server:
 
 ```bash
 curl -X POST http://localhost:8080/mcp/github/ \
@@ -105,7 +109,65 @@ curl -X POST http://localhost:8080/mcp/github/ \
   }'
 ```
 
-And that's it! Your MCP servers are now protected by Loopers.
+---
+
+### Option B: Local Stdio Process Wrapping (`loopers mcp wrap`)
+
+Almost all local autonomous agents (e.g., **ZeroClaw**, **Claude Desktop**, **Cursor**) spawn local MCP servers via subprocess pipes using standard input/output (`stdio`) rather than HTTP.
+
+To protect these tools with zero agent code changes, use `loopers mcp wrap`. Loopers acts as a transparent man-in-the-middle on the OS pipe, intercepting child process communication to minify schemas, offload bloated outputs into Ghost Tokens, and record live FinOps telemetry.
+
+#### Syntax:
+```bash
+loopers mcp wrap --server <server_name> --key <lp-proxy-key> [--threshold <bytes>] -- <child_command...>
+```
+
+#### 1. ZeroClaw Integration (`config.toml`)
+```toml
+# In C:\Users\<user>\zeroclaw\config.toml or ~/.zeroclaw/config.toml
+
+[[mcp.servers]]
+name = "notion"
+transport = "stdio"
+command = "loopers"
+args = ["mcp", "wrap", "--server", "notion", "--key", "lp-your-key", "--", "npx.cmd", "-y", "mcp-remote", "https://mcp.notion.com/mcp"]
+
+[[mcp.servers]]
+name = "fetch"
+transport = "stdio"
+command = "loopers"
+args = ["mcp", "wrap", "--server", "fetch", "--key", "lp-your-key", "--", "python", "-m", "mcp_server_fetch"]
+```
+*(Ensure `loopers` and `loopers.exe` are in your `[risk_profiles.default] allowed_commands` list)*
+
+#### 2. Claude Desktop Integration (`claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "loopers",
+      "args": ["mcp", "wrap", "--server", "filesystem", "--key", "lp-your-key", "--", "npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/dir"]
+    }
+  }
+}
+```
+
+---
+
+### Option C: Stdio-to-HTTP Gateway Bridge (`loopers mcp bridge`)
+
+If you run a centralized Loopers AI Firewall server on `:8080` and want a local stdio-only client to talk to an upstream HTTP MCP server:
+
+```json
+{
+  "mcpServers": {
+    "enterprise": {
+      "command": "loopers",
+      "args": ["mcp", "bridge", "--server", "enterprise", "--key", "lp-your-key", "--url", "http://127.0.0.1:8080"]
+    }
+  }
+}
+```
 
 ---
 
@@ -137,9 +199,11 @@ mcp:
 
 ### What Happens Behind the Scenes?
 
-1. **Passthrough**: If the method is `tools/list` or `ping`, Loopers passes it straight to the MCP server securely.
-2. **Blast Radius Tracking**: Loopers parses the `X-Loopers-Session-Max-Servers: 2` header. If `session-123` later attempts to touch a 3rd distinct server (e.g., Snowflake), Loopers instantly blocks the lateral movement with a `403 Forbidden`.
-3. **Circuit Breaking**: If the agent sends the exact same `github_api` call 5 times in a row within 60 seconds, Loopers intercepts the 5th call and returns a `429 Too Many Requests` error, breaking the loop.
-4. **Budget Deduction**: Loopers checks `pricing.yaml`, finds that `github_api` costs `$0.001`, and atomically deducts it from the `lp-abc123` key's budget.
-5. **Response Inspection**: For `tools/call` response payloads, Loopers buffers the response and runs a stateless pattern scanner. If an injection is found, it transforms the body; if a secret is found, it writes a quarantine lockout to Redis and returns a policy block error response.
+1. **Schema Minifier (`tools/list`)**: When the agent requests the tool catalog, Loopers strips verbose markdown documentation, nested JSON Schema boilerplate, and redundant enums. This compresses discovery payloads (e.g. stripping 40,000+ tokens on Notion) while keeping 100% parameter validity for LLM tool calling.
+2. **Ghost Token Offloading (`tools/call`)**: If a tool returns a massive payload (>4KB by default), Loopers encrypts the raw response (AES-256-GCM / HKDF) into Redis and replaces it on the wire with an ~80-token Ghost Stub, preventing quadratic context growth across subsequent turns.
+3. **Read-Only Tool Memoization**: Repeated idempotent tool calls (e.g. read queries with identical arguments) are served directly from Redis in `<1ms` with `$0.00` upstream API spend.
+4. **Blast Radius Tracking**: Loopers tracks active tool servers per session. If a session attempts to touch more distinct servers than authorized by policy or headers (`X-Loopers-Session-Max-Servers`), Loopers instantly blocks the lateral movement with `403 Forbidden`.
+5. **Circuit Breaking**: If the agent gets stuck calling the exact same tool repeatedly within the sliding window, Loopers intercepts the call and returns a `429 Too Many Requests` or JSON-RPC error, breaking the loop.
+6. **Budget Deduction**: Loopers checks `pricing.yaml` and atomically leases funds from the agent key's Redis budget.
+7. **Response Inspection**: For `tools/call` response payloads, Loopers buffers the response and runs a stateless pattern scanner. If an indirect prompt injection is found, it transforms the body; if a secret leak is detected, it locks out the agent in Redis and returns a self-correcting error.
 

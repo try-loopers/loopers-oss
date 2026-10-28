@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -13,9 +14,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/huh"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/try-loopers/loopers-oss/cmd/loopers/ui"
@@ -667,6 +670,106 @@ var budgetStatusCmd = &cobra.Command{
 	},
 }
 
+var (
+	finopsWindow string
+	finopsJSON   bool
+)
+
+var finopsCmd = &cobra.Command{
+	Use:     "finops [hash]",
+	Aliases: []string{"savings"},
+	Short:   "Get real-time FinOps cost reduction and token acceleration scorecard",
+	Args:    cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		var hash string
+		if len(args) > 0 {
+			hash = args[0]
+		}
+
+		redisClient, err := getRedisClient()
+		if err != nil {
+			if ui.IsInteractive() && len(args) == 0 {
+				ui.Error("Failed to connect to Redis. Ensure it is running.")
+				return
+			}
+			logging.Logger.Fatal().Err(err).Msg("failed to connect to redis")
+		}
+		defer redisClient.Close()
+
+		if hash == "" && ui.IsInteractive() {
+			ui.PrintLogo()
+			options, err := fetchActiveKeys(redisClient)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Failed to fetch keys: %v", err))
+				return
+			}
+			if len(options) == 0 {
+				ui.Error("No active keys found")
+				return
+			}
+
+			err = huh.NewSelect[string]().
+				Title("Select Key to View FinOps Scorecard").
+				Options(options...).
+				Value(&hash).
+				WithTheme(ui.GetHuhTheme()).
+				Run()
+
+			if err != nil {
+				return
+			}
+		}
+
+		if hash == "" {
+			logging.Logger.Fatal().Msg("hash argument is required")
+		}
+
+		ctx := context.Background()
+		rdb := redisClient.GetUnderlyingClient()
+
+		keyExist, err := rdb.Exists(ctx, fmt.Sprintf("loopers:key:%s", hash)).Result()
+		if err != nil || keyExist == 0 {
+			logging.Logger.Fatal().Msg("key not found in registry")
+		}
+
+		status, err := redisClient.GetFinOpsStatus(ctx, hash)
+		if err != nil {
+			logging.Logger.Fatal().Err(err).Msg("failed to get finops status")
+		}
+
+		win := strings.ToLower(finopsWindow)
+		if win == "" {
+			win = "daily"
+		}
+		rec, ok := status[win]
+		if !ok {
+			rec = status["daily"]
+			win = "daily"
+		}
+
+		if finopsJSON {
+			out, _ := json.MarshalIndent(map[string]interface{}{
+				"key_hash": hash,
+				"window":   win,
+				"finops":   rec,
+			}, "", "  ")
+			fmt.Println(string(out))
+			return
+		}
+
+		displayHash := hash
+		if len(displayHash) > 12 {
+			displayHash = displayHash[:12] + "..."
+		}
+		keyConfig, _ := rdb.HGetAll(ctx, fmt.Sprintf("loopers:key:%s", hash)).Result()
+		name := keyConfig["name"]
+		provider := keyConfig["provider"]
+
+		title := fmt.Sprintf("FinOps Scorecard  ›  %s  (%s / %s)  [%s]", displayHash, name, provider, strings.ToUpper(win))
+		ui.PrintFinOpsScorecard(title, rec.ActualSpendUSD, rec.CounterfactualUSD, rec.NetSavedUSD, rec.SavingsPercentage, rec.GhostTokensSaved, rec.GhostPayloadBytes, rec.FastTierTurns, rec.FastTierSavedUSD, rec.ToolMemoHits, rec.ToolMemoSavedUSD, rec.SchemaTokensSaved)
+	},
+}
+
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Interactively initialize Loopers AI firewall configuration",
@@ -734,6 +837,22 @@ var execCmd = &cobra.Command{
 		localProxyPort := listener.Addr().(*net.TCPAddr).Port
 		localProxyURL := fmt.Sprintf("http://127.0.0.1:%d/v1", localProxyPort)
 
+		sessionID := os.Getenv("LOOPERS_SESSION_ID")
+		if sessionID == "" {
+			sessionID = fmt.Sprintf("sess_%d_%s", time.Now().Unix(), uuid.New().String()[:8])
+		}
+
+		type execTracker struct {
+			mu            sync.Mutex
+			requests      int
+			actualSpend   float64
+			savedUSD      float64
+			ghostCount    int
+			fastTierTurns int
+			memoHits      int
+		}
+		tracker := &execTracker{}
+
 		rp := &httputil.ReverseProxy{
 			Director: func(req *http.Request) {
 				req.URL.Scheme = targetURL.Scheme
@@ -757,16 +876,40 @@ var execCmd = &cobra.Command{
 				if execModelOverride != "" {
 					req.Header.Set("X-Loopers-Model-Override", execModelOverride)
 				}
-				sessionID := os.Getenv("LOOPERS_SESSION_ID")
-				if sessionID != "" {
-					req.Header.Set("X-Loopers-Session-ID", sessionID)
-				}
+				req.Header.Set("X-Loopers-Session-ID", sessionID)
 				if os.Getenv("LOOPERS_SKIP_HYDRATION") == "true" {
 					req.Header.Set("X-Loopers-Skip-Hydration", "true")
 				}
 				if os.Getenv("LOOPERS_FORCE_FRONTIER") == "true" {
 					req.Header.Set("X-Loopers-Force-Frontier", "true")
 				}
+			},
+			ModifyResponse: func(resp *http.Response) error {
+				tracker.mu.Lock()
+				defer tracker.mu.Unlock()
+
+				tracker.requests++
+
+				if costHeader := resp.Header.Get("X-Loopers-Request-Cost"); costHeader != "" {
+					if cost, err := strconv.ParseFloat(costHeader, 64); err == nil {
+						tracker.actualSpend += cost
+					}
+				}
+				if savedHeader := resp.Header.Get("X-Loopers-Saved-USD"); savedHeader != "" {
+					if saved, err := strconv.ParseFloat(savedHeader, 64); err == nil {
+						tracker.savedUSD += saved
+					}
+				}
+				if resp.Header.Get("X-Loopers-Ghost-Token") != "" {
+					tracker.ghostCount++
+				}
+				if strings.EqualFold(resp.Header.Get("X-Loopers-FinOps-Route"), "fast-tier") {
+					tracker.fastTierTurns++
+				}
+				if strings.EqualFold(resp.Header.Get("X-Loopers-MCP-Memoized"), "true") {
+					tracker.memoHits++
+				}
+				return nil
 			},
 		}
 
@@ -806,15 +949,10 @@ var execCmd = &cobra.Command{
 		c.Env = append(c.Env, fmt.Sprintf("GEMINI_BASE_URL=%s", localProxyURL))
 		c.Env = append(c.Env, fmt.Sprintf("DEEPSEEK_BASE_URL=%s", localProxyURL))
 		c.Env = append(c.Env, fmt.Sprintf("DEEPSEEK_API_BASE=%s", localProxyURL))
-
-		// Always inject OPENROUTER_BASE_URL regardless of provider, since some CLIs
-		// (e.g. opencode) use it as an alternative base URL resolution path.
 		c.Env = append(c.Env, fmt.Sprintf("OPENROUTER_BASE_URL=%s", localProxyURL))
+		c.Env = append(c.Env, fmt.Sprintf("LOOPERS_SESSION_ID=%s", sessionID))
 
 		// Inject synthetic API keys if real ones are absent.
-		// This prevents harnesses like Aider from aborting on startup
-		// before making any requests. The proxy replaces the key at the
-		// HTTP layer, so this value never reaches the upstream provider.
 		syntheticKey := "loopers-managed"
 		injectIfMissing := func(envVar string) {
 			for _, e := range c.Env {
@@ -830,11 +968,8 @@ var execCmd = &cobra.Command{
 		injectIfMissing("DEEPSEEK_API_KEY")
 
 		// Inject OpenHands-specific LLM override variables.
-		// OpenHands uses LLM_BASE_URL (not OPENAI_BASE_URL) to override its endpoint.
 		if strings.ToLower(args[0]) == "openhands" {
 			c.Env = append(c.Env, fmt.Sprintf("LLM_BASE_URL=%s", localProxyURL))
-			// OpenHands strictly requires LLM_API_KEY and ignores other provider keys.
-			// We must inject the actual provider's API key into LLM_API_KEY so it sends it.
 			realKey := os.Getenv(envAPIKey)
 			if realKey != "" {
 				c.Env = append(c.Env, fmt.Sprintf("LLM_API_KEY=%s", realKey))
@@ -853,9 +988,6 @@ var execCmd = &cobra.Command{
 			}
 		}
 
-		// Warn if a real (user-supplied) API key is missing for BYOK flows.
-		// Harnesses that Loopers fully manages (aider, openhands, pi, dsh) skip this
-		// warning because they are designed to work with the synthetic key above.
 		managedHarnesses := map[string]bool{
 			"aider": true, "openhands": true, "pi": true,
 			"dsh": true, "deepseek-harness": true, "deepseek": true,
@@ -875,11 +1007,43 @@ var execCmd = &cobra.Command{
 			}
 		}
 
-		if err := c.Run(); err != nil {
-			if exitError, ok := err.(*exec.ExitError); ok {
+		runErr := c.Run()
+
+		if tracker.requests > 0 {
+			actual := tracker.actualSpend
+			saved := tracker.savedUSD
+			counterfactual := actual + saved
+			ghostToks := int64(tracker.ghostCount * 3600)
+			fastTurns := int64(tracker.fastTierTurns)
+			memoCount := int64(tracker.memoHits)
+
+			keyHash := keyring.HashKey(proxyKey)
+			if rClient, rErr := getRedisClient(); rErr == nil && rClient != nil {
+				defer rClient.Close()
+				if sessRec, sErr := rClient.GetSessionFinOps(context.Background(), keyHash, sessionID); sErr == nil && sessRec != nil {
+					if sessRec.ActualSpendUSD > 0 || sessRec.NetSavedUSD > 0 || sessRec.GhostTokensSaved > 0 {
+						actual = sessRec.ActualSpendUSD
+						saved = sessRec.NetSavedUSD
+						counterfactual = sessRec.CounterfactualUSD
+						ghostToks = sessRec.GhostTokensSaved
+						fastTurns = sessRec.FastTierTurns
+						memoCount = sessRec.ToolMemoHits
+					}
+				}
+			}
+
+			pct := 0.0
+			if counterfactual > 0 {
+				pct = (saved / counterfactual) * 100.0
+			}
+			ui.PrintFinOpsExitSummary(tracker.requests, actual, counterfactual, saved, pct, ghostToks, fastTurns, memoCount)
+		}
+
+		if runErr != nil {
+			if exitError, ok := runErr.(*exec.ExitError); ok {
 				os.Exit(exitError.ExitCode())
 			}
-			logging.Logger.Fatal().Err(err).Msg("failed to execute command")
+			logging.Logger.Fatal().Err(runErr).Msg("failed to execute command")
 		}
 	},
 }
@@ -917,4 +1081,9 @@ func init() {
 	budgetCmd.AddCommand(budgetSetCmd)
 	budgetCmd.AddCommand(budgetStatusCmd)
 	rootCmd.AddCommand(budgetCmd)
+
+	// FinOps command
+	finopsCmd.Flags().StringVar(&finopsWindow, "window", "daily", "Time window to inspect (minute|hourly|daily|weekly|monthly|total)")
+	finopsCmd.Flags().BoolVar(&finopsJSON, "json", false, "Output FinOps scorecard in JSON format")
+	rootCmd.AddCommand(finopsCmd)
 }

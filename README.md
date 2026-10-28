@@ -22,9 +22,10 @@
 | Everyday Normal Operations ("Normal Days") | Rogue Threat Defense ("Bad Days") |
 | :--- | :--- |
 | **65% to 76% Input Token Reduction** via Ghost Token offloading | **100% Real-Time Loop Termination** (Fingerprint, Velocity, Stall) |
-| **Up to 68.35% Net LLM Bill Savings** on enterprise multi-turn workflows | **0% Budget Over-Charge Guarantee** via atomic pre-call Redis leases |
-| **94.6% Discovery Cost Drop** via smart cold-turn fast tier routing | **Sub-Millisecond DLP Redaction** (scrubs PII, secrets, internal IPs) |
-| **3.8 ms Cached Tool Execution** at **$0.00** upstream API cost | **Deterministic Policy & FSM** (OWASP Top 10, NIST, EU AI Act presets) |
+| **40,000+ Schema Tokens Stripped** via inline MCP Minifier | **0% Budget Over-Charge Guarantee** via atomic pre-call Redis leases |
+| **Up to 68.35% Net LLM Bill Savings** on enterprise multi-turn workflows | **Sub-Millisecond DLP Redaction** (scrubs PII, secrets, internal IPs) |
+| **94.6% Discovery Cost Drop** via smart cold-turn fast tier routing | **Deterministic Policy & FSM** (OWASP Top 10, NIST, EU AI Act presets) |
+| **3.8 ms Cached Tool Execution** at **$0.00** upstream API cost | **Fail-Closed Security** (blocks unshielded egress on connection drop) |
 
 ---
 
@@ -173,6 +174,7 @@ It is **not** an AI gateway, passive API wrapper or multi-provider aggregator, p
 * **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`):** Solves agent context bloat on healthy production traffic. Bulky tool outputs (MCP responses, SQL queries > configurable threshold from 512 B to 8 KB) are encrypted with AES-256-GCM / HKDF and offloaded to local Redis, replacing them with ~80-token Ghost Stubs. Delivers **65% to 75.8% input token reduction** while dynamically tail-hydrating full raw context on synthesis turns.
 * **Deterministic Prefix Canonicalization (`internal/proxy/canonicalizer.go`):** Normalizes tool schema ordering, stabilizes timestamps, and collapses redundant whitespace to guarantee upstream KV prompt cache hits across OpenAI, Anthropic, and OpenRouter for up to **90% prompt cache read discounts** (77.01% empirical KV hit rate).
 * **Smart Fast-Tier Model Routing (`internal/server/router.go`):** Dynamically remaps cold discovery and verification turns to high-speed models (delivering an immediate **94.6% cost reduction** on cold discovery turns) while enforcing warm-cache pinning once multi-turn cache affinity is established.
+* **MCP Schema Minification (`cmd/loopers/mcp.go` & `internal/mcp/sanitizer.go`):** Intercepts Model Context Protocol `tools/list` handshakes across both HTTP and local stdio processes, trimming redundant descriptions, JSON Schema meta-tags, and documentation bloat to strip tens of thousands of prompt discovery tokens on every turn while preserving 100% parameter validity.
 * **Read-Only Tool Memoization (`internal/mcp/handler.go`):** Intercepts repeat read-only MCP tool invocations and serves them from Redis in **3.8 ms** with zero upstream latency and **$0.00** API charges.
 * **Empirical Validation:** Benchmarked across 60 multi-turn production agent workloads, achieving a net **68.35% reduction in total enterprise cloud API spend** across combined context compression, KV cache maximization, and fast-tier routing.
 * **Zero-SDK Session Derivation:** Automatically tracks sessions and trajectories from standard HTTP headers or cryptographic prompt hashing with zero code changes required in agent frameworks.
@@ -327,12 +329,44 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+#### Option D: Transparent Local MCP Stdio Wrapper (`loopers mcp wrap`)
+For local autonomous agents (e.g. ZeroClaw, Claude Desktop, Cursor) using Model Context Protocol tools via standard I/O pipes (like `npx`, `python`, `node`), wrap the child command directly without modifying your agent codebase:
+
+```toml
+# Example: zeroclaw config.toml
+[[mcp.servers]]
+name = "notion"
+transport = "stdio"
+command = "loopers"
+args = ["mcp", "wrap", "--server", "notion", "--key", "lp-your-proxy-key", "--", "npx.cmd", "-y", "mcp-remote", "https://mcp.notion.com/mcp"]
+```
+
+```json
+// Example: claude_desktop_config.json
+{
+  "mcpServers": {
+    "fetch": {
+      "command": "loopers",
+      "args": ["mcp", "wrap", "--server", "fetch", "--key", "lp-your-proxy-key", "--", "python", "-m", "mcp_server_fetch"]
+    }
+  }
+}
+```
+
+Loopers sits directly on the OS pipe:
+- Compresses `tools/list` JSON schemas on the fly (stripping 40,000+ discovery tokens).
+- Encrypts tool outputs >4KB into Redis and injects ~80-token Ghost Stubs.
+- Streams real-time FinOps telemetry directly into your live terminal dashboard.
+
 ---
 
 ## CLI Reference
 
 | Command | Description |
 |---|---|
+| `loopers` | Interactive terminal UI (TUI) dashboard with live auto-refreshing FinOps Scorecard (Spend, Counterfactual, Net Savings, Ghost Tokens, Schema Minifier) and timeframe hotkeys. |
+| `loopers mcp wrap` | Transparently wraps local subprocess MCP tools over stdio to apply Schema Minification and Ghost Token offloading. |
+| `loopers mcp bridge` | Bridges local standard I/O (stdin/stdout) JSON-RPC agents to the Loopers HTTP firewall proxy. |
 | `loopers serve` | Starts the firewall proxy server and admin metrics listener. Accepts `--presets` and `--config`. |
 | `loopers init` | Interactive terminal UI (TUI) wizard to generate a production-ready `loopers.yaml`. |
 | `loopers doctor` | Verifies Redis connectivity, pricing configuration, policy directories, and dependencies. |

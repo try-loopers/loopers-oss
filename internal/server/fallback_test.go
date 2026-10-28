@@ -201,6 +201,22 @@ providers:
 	if upstreamReceivedModel != "fast-model" {
 		t.Errorf("Expected upstream to receive fast-model, got '%s'", upstreamReceivedModel)
 	}
+
+	// Verify FinOps telemetry was recorded in Redis
+	finopsStatus, err := redisClient.GetFinOpsStatus(ctx, keyHash)
+	if err != nil {
+		t.Fatalf("Failed to fetch FinOps status: %v", err)
+	}
+	daily := finopsStatus["daily"]
+	if daily.FastTierTurns != 1 {
+		t.Errorf("Expected 1 fast tier turn recorded in FinOps telemetry, got %d", daily.FastTierTurns)
+	}
+	if daily.FastTierSavedUSD <= 0 {
+		t.Errorf("Expected positive FastTierSavedUSD, got %f", daily.FastTierSavedUSD)
+	}
+	if daily.CounterfactualUSD <= daily.ActualSpendUSD {
+		t.Errorf("Expected CounterfactualUSD (%f) > ActualSpendUSD (%f)", daily.CounterfactualUSD, daily.ActualSpendUSD)
+	}
 }
 
 func TestSmartFinOpsRouting_WarmCache(t *testing.T) {

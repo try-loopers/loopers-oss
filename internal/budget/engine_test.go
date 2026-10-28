@@ -288,3 +288,90 @@ func TestBudgetCheckAction_JSONDecoding(t *testing.T) {
 		t.Errorf("expected saved_usd 15.75, got %f", daily.SavedUSD)
 	}
 }
+
+func TestRecordFinOpsTelemetryAndGetStatus(t *testing.T) {
+	mr, client := setupTestRedis(t)
+	defer client.Close()
+	defer mr.Close()
+
+	ctx := context.Background()
+	keyHash := "test-finops-key"
+	sessionID := "test-sess-1"
+
+	delta1 := FinOpsTelemetryDelta{
+		GhostTokensSaved:  45200,
+		GhostPayloadBytes: 180800,
+		GhostStubsCreated: 5,
+		SchemaTokensSaved: 1200,
+		FastTierTurns:     3,
+		FastTierSavedUSD:  0.45,
+		ToolMemoHits:      2,
+		ToolMemoSavedUSD:  0.10,
+		ActualSpendUSD:    0.20,
+		CounterfactualUSD: 0.75,
+		NetSavedUSD:       0.55,
+	}
+
+	err := client.RecordFinOpsTelemetry(ctx, keyHash, sessionID, delta1)
+	if err != nil {
+		t.Fatalf("RecordFinOpsTelemetry failed: %v", err)
+	}
+
+	// Fetch status
+	status, err := client.GetFinOpsStatus(ctx, keyHash)
+	if err != nil {
+		t.Fatalf("GetFinOpsStatus failed: %v", err)
+	}
+
+	daily := status["daily"]
+	if daily.GhostTokensSaved != 45200 {
+		t.Errorf("expected 45200 ghost tokens saved, got %d", daily.GhostTokensSaved)
+	}
+	if daily.GhostPayloadBytes != 180800 {
+		t.Errorf("expected 180800 ghost bytes, got %d", daily.GhostPayloadBytes)
+	}
+	if daily.FastTierTurns != 3 {
+		t.Errorf("expected 3 fast tier turns, got %d", daily.FastTierTurns)
+	}
+	if daily.ToolMemoHits != 2 {
+		t.Errorf("expected 2 tool memo hits, got %d", daily.ToolMemoHits)
+	}
+	if daily.ActualSpendUSD != 0.20 {
+		t.Errorf("expected actual spend 0.20, got %f", daily.ActualSpendUSD)
+	}
+	if daily.CounterfactualUSD != 0.75 {
+		t.Errorf("expected counterfactual spend 0.75, got %f", daily.CounterfactualUSD)
+	}
+	if daily.NetSavedUSD != 0.55 {
+		t.Errorf("expected net saved 0.55, got %f", daily.NetSavedUSD)
+	}
+	if daily.SavingsPercentage < 73.0 || daily.SavingsPercentage > 74.0 {
+		t.Errorf("expected ~73.33%% savings, got %f%%", daily.SavingsPercentage)
+	}
+
+	total := status["total"]
+	if total.GhostTokensSaved != 45200 || total.NetSavedUSD != 0.55 {
+		t.Errorf("expected total to match delta, got ghost=%d, saved=%f", total.GhostTokensSaved, total.NetSavedUSD)
+	}
+
+	// Verify Session FinOps
+	sessRecord, err := client.GetSessionFinOps(ctx, keyHash, sessionID)
+	if err != nil {
+		t.Fatalf("GetSessionFinOps failed: %v", err)
+	}
+	if sessRecord == nil {
+		t.Fatalf("expected non-nil sessRecord")
+	}
+	if sessRecord.GhostTokensSaved != 45200 || sessRecord.NetSavedUSD != 0.55 {
+		t.Errorf("expected session record to match delta1, got %+v", sessRecord)
+	}
+
+	// Verify legacy budget status also got updated with 0.55 saved
+	budgetStatus, err := client.GetBudgetStatus(ctx, keyHash)
+	if err != nil {
+		t.Fatalf("GetBudgetStatus failed: %v", err)
+	}
+	if budgetStatus["daily"].SavedUSD != 0.55 {
+		t.Errorf("expected legacy budget saved_usd 0.55, got %f", budgetStatus["daily"].SavedUSD)
+	}
+}
