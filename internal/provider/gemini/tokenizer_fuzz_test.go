@@ -2,11 +2,18 @@ package gemini
 
 import (
 	"context"
+	"io"
 	"net/http"
-	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(req *http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 // FuzzCountGeminiTokensFallback tests that token counting (both via API endpoint and local fallback)
 // doesn't panic or block when provided with arbitrary byte slices (e.g. malformed JSON).
@@ -21,20 +28,24 @@ func FuzzCountGeminiTokensFallback(f *testing.F) {
 	f.Add([]byte(`not json`))
 	f.Add([]byte(``))
 
-	// Start a fast local server that mimics the Gemini countTokens endpoint.
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"totalTokens":1}`))
-	}))
-	defer ts.Close()
+	// Fast in-memory client that mimics the Gemini countTokens endpoint without TCP socket exhaustion
+	mockClient := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"totalTokens":1}`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
 
-	p := NewGeminiProviderWithOptions(ts.URL, ts.Client())
+	p := NewGeminiProviderWithOptions("http://mock-gemini.local", mockClient)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		// Exercise both provider token count (mocked via httptest) and fallback
+		// Exercise both provider token count (mocked in-memory) and fallback
 		_, _ = p.CountInputTokens(ctx, "gemini-3.5-flash", data, "test-key")
 		_, _ = countGeminiTokensFallback(data)
 	})
