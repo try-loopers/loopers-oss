@@ -29,21 +29,60 @@ curl -sSL https://tryloopers.com/audit.sh | sh
 
 # Or run instantly via npx (Node 18+):
 npx @loopers/audit
+
+# Or run directly if you have loopers installed:
+loopers audit
 ```
 
-```
-+------------------------------------------------------------------+
-| Loopers Agent Context & Blast-Radius X-Ray (Zero-Config Audit)   |
-+------------------------------------------------------------------+
-  Target Detected:   OpenClaw Autonomous Agent Workspace
-  Benchmark Model:   anthropic/claude-sonnet-4-6 ($3.00 in / $15.00 out)
+```text
+  [x] [ ]   LOOPERS
+  [x] [x]   AI FIREWALL FOR THE AGENTIC ERA  ·  (Press Ctrl+C to go back)
 
-  Static Overhead:   3,715 tokens/turn -> 1,746 tokens (-53.0% static prefix)
-  Tool Baggage:      60 oversized payloads (>4KB) re-sent 360 times
-  Blast Radius:      3 unshielded tools scored >= 30 [execute_command, delete_record]
-  30-Day Projection: $214.80/mo -> With Loopers: $58.40/mo (Saves $156.40/mo, -72.8%)
+╭──────────────────────────────────────────────────────────────────╮
+│ ◎ Loopers Agent Context & Blast-Radius X-Ray (Zero-Config Audit) │
+╰──────────────────────────────────────────────────────────────────╯
+
+  Target Detected:   ZeroClaw Autonomous Agent Harness (C:\Users\varad\zeroclaw)
+  Benchmark Model:   deepseek/deepseek-v4.1-flash-1017 (openrouter) ($0.02 in / $0.64 out per 1M)
+  Discovered Assets: 2 prompt files [AGENTS.md, SOUL.md] · 3 MCP servers [enterprise, fetch, notion]
+
+  1. Static Context & MCP Schema Overhead (Billed on Every Turn)
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│Context Layer                  │ Unoptimized │ With Loopers │ Wire Optimization       │
+│───────────────────────────────┼─────────────┼──────────────┼─────────────────────────│
+│Workspace Files (2 found)      │ 851 tokens  │ 851 tokens   │ KV-Pinned (-50% to -90%)│
+│MCP Schemas (3 srv / 9 tools)  │ 2355 tokens │ 867 tokens   │ -63.2% schema tokens    │
+│Unused "Ghost Tools" (9 tools) │ 2355 tokens │ 0 tokens     │ -100% via tool_allowlist│
+│Total Static Prefix            │ 3206 tokens │ 1718 tokens  │ -46.4% per-turn prefix  │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+
+  2. Multi-Turn Context Baggage & FinOps Audit (Live Session Replay — 48 sessions, 137 turns from logs)
+  ›  Token Spend Split: 26.7% Output Tokens ($0.03) │ 73.3% Input Tokens ($0.08) [41x Output-Heavy Model]
+  △  Dead MCP Bloat ("Ghost Tools"): 9 of 9 tools were NEVER invoked across 48 sessions [enterprise_search, ...]
+  ✓  Quadratic Tool Baggage: 0 oversized tool outputs detected
+  ✓  Duplicate Read-Only Calls: 0 redundant read calls detected
+
+  3. Regime 1 Security, DLP & Blast-Radius Exposure
+  ✗  Cleartext DLP Leaks: 0 secrets/credentials & 7 internal network IPs/PII unmasked in session logs
+  ✗  High-Blast-Radius MCP Tools: 1 tools scored >= 30 [notion_update_database (score:40)]
+  ✓  Prompt Injections: 0 indirect injection patterns detected in recorded tool responses
+  △  Runaway Protection Grade: A (Shielded by Loopers Firewall)
+
+  4. Estimated 30-Day Agent FinOps Scorecard
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│Metric                  │ Without Loopers  │ With Loopers        │ Net Monthly Impact       │
+│────────────────────────┼──────────────────┼─────────────────────┼──────────────────────────│
+│Per-Turn Static Prefix  │ 3206 tokens      │ 1718 tokens         │ -1488 tokens (-46.4%)    │
+│Spend (Active Model)    │ $0.24 / mo       │ $0.21 / mo          │ Saves $0.03 / mo (-12.4%)│
+│Spend (Frontier Sonnet) │ $12.74 / mo      │ $5.74 / mo          │ Saves $7.01 / mo (-55.0%)│
+│Runaway Budget Ceiling  │ Unbounded (Soft) │ 0% Over-Spend (Lua) │ Deterministic Kill-Switch│
+└────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ›  Auto-strip dead Ghost Tools & enable DLP masking on wire: loopers audit --fix
+  ›  Run protected right now (0 Redis setup needed):        loopers exec -- zeroclaw agent
+  ›  Share this scorecard on GitHub/Reddit/X:              loopers audit --share
 ```
-*Zero dependencies. Read-only scan. Run `loopers audit --fix` to auto-generate `loopers.yaml`.*
+*Zero dependencies. Read-only scan. Run `loopers audit --fix` to auto-generate `loopers.yaml` with dead tool allowlists and DLP gates pre-configured.*
 
 ---
 
@@ -260,8 +299,12 @@ npx @loopers/audit
 loopers audit
 ```
 
-* **What it audits:** Scans your real workspace files (`SOUL.md`, `MEMORY.md`), discovers MCP configs (`openclaw.json`, `zeroclaw.toml`, `.mcp.json`), replays `.jsonl` session logs, and calculates exact monthly dollar waste vs. Loopers savings.
-* **Auto-generate your config:** Run `loopers audit --fix` to automatically generate a tailored `loopers.yaml` pre-configured with all discovered FinOps & security controls.
+* **What it audits:**
+  * **Static Context & Ghost Tools:** Scans workspace files (`SOUL.md`, `MEMORY.md`, `AGENTS.md`), minifies MCP tool schemas, and flags dead "Ghost Tools" (tools configured in schemas but called 0 times in session history).
+  * **Session Trajectory & Spend Split:** Replays `.jsonl` session traces for quadratic tool output baggage and computes input vs. output token spend split.
+  * **Regime 1 Security & DLP Exposure:** Inspects session logs for cleartext API keys, JWTs, internal private network IPs/PII leaks, and indirect prompt injection attempts.
+  * **30-Day FinOps Scorecard:** Highlights per-turn static prefix token savings alongside monthly spend projections comparing your active model with frontier models (Claude Sonnet 4.6).
+* **Auto-generate your config:** Run `loopers audit --fix` to automatically generate a tailored `loopers.yaml` with dead tools pruned from `mcp.sanitizer.tool_allowlist` and semantic DLP gates enabled.
 * **Test live with 0 Redis setup:** Run `loopers exec -- <your-agent-command>`. Loopers automatically boots an in-process, zero-dependency memory store with an inline `$10.00` safety lease so you get immediate live savings on your very next turn.
 
 ### Prerequisites
@@ -418,7 +461,7 @@ Loopers sits directly on the OS pipe:
 | `loopers mcp bridge` | Bridges local standard I/O (stdin/stdout) JSON-RPC agents to the Loopers HTTP firewall proxy. |
 | `loopers serve` | Starts the firewall proxy server and admin metrics listener. Accepts `--presets` and `--config`. |
 | `loopers init` | Interactive terminal UI (TUI) wizard to generate a production-ready `loopers.yaml`. |
-| `loopers audit [dir]` | Run a zero-config FinOps & Blast-Radius X-Ray on any agent workspace or MCP config. Supports `--fix`, `--share`, `--model`, `--provider`, `--mcp-url`, `--trace`. |
+| `loopers audit [dir]` | Run a zero-config FinOps & Blast-Radius X-Ray on any agent workspace or MCP config. Audits prompt prefix overhead, dead ghost tools, session logs, DLP credential/IP leaks, and blast-radius scores. Supports `--fix`, `--share`, `--model`, `--provider`, `--mcp-url`, `--trace`, `--offline`. |
 | `loopers doctor` | Verifies Redis connectivity, pricing configuration, policy directories, and dependencies. |
 | `loopers exec -- <cmd>` | Wraps and executes agent CLI binaries with transparent proxy injection and auto-detected providers. |
 | `loopers verify -t <trace>` | Audits historical agent execution traces offline against security policies. Supports `--format json` for CI/CD. |
