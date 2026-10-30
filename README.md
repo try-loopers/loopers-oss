@@ -17,6 +17,36 @@
   <img src="https://img.shields.io/badge/redis-7%2B%20Required-black.svg?style=for-the-badge" alt="Redis 7+ Required" />
 </p>
 
+---
+
+### Zero-Config Agent FinOps & Blast-Radius Audit (Run in 3 Seconds)
+
+Before deploying a proxy or provisioning Redis, inspect your local agent workspace (OpenClaw, ZeroClaw, OpenCode, CrewAI, LangGraph, or custom MCP configs) to measure static prompt bloat, replay session histories for quadratic token waste, and audit tool blast-radius risk:
+
+```bash
+# Instant zero-install diagnostic runner (macOS / Linux / WSL):
+curl -sSL https://tryloopers.com/audit.sh | sh
+
+# Or run instantly via npx (Node 18+):
+npx @try-loopers/audit
+```
+
+```
++------------------------------------------------------------------+
+| Loopers Agent Context & Blast-Radius X-Ray (Zero-Config Audit)   |
++------------------------------------------------------------------+
+  Target Detected:   OpenClaw Autonomous Agent Workspace
+  Benchmark Model:   anthropic/claude-sonnet-4-6 ($3.00 in / $15.00 out)
+
+  Static Overhead:   3,715 tokens/turn -> 1,746 tokens (-53.0% static prefix)
+  Tool Baggage:      60 oversized payloads (>4KB) re-sent 360 times
+  Blast Radius:      3 unshielded tools scored >= 30 [execute_command, delete_record]
+  30-Day Projection: $214.80/mo -> With Loopers: $58.40/mo (Saves $156.40/mo, -72.8%)
+```
+*Zero dependencies. Read-only scan. Run `loopers audit --fix` to auto-generate `loopers.yaml`.*
+
+---
+
 ### Proven Dual-Regime Value at a Glance
 
 | Everyday Normal Operations ("Normal Days") | Rogue Threat Defense ("Bad Days") |
@@ -215,6 +245,25 @@ loopers serve --presets safety,safety_drift,pci,mcp_sandbox
 
 ## Quickstart
 
+### Step 0: Instant 3-Second Audit (Zero Dependencies / Zero Redis)
+
+Before deploying a proxy or configuring Redis, run a read-only X-Ray of your current AI agent workspace (OpenClaw, ZeroClaw, OpenCode, CrewAI, LangGraph, or MCP configs) to inspect prompt prefix bloat, replay session histories for quadratic token waste, and audit tool blast-radius risk:
+
+```bash
+# Instant zero-install diagnostic runner (macOS / Linux / WSL):
+curl -sSL https://tryloopers.com/audit.sh | sh
+
+# Or run instantly via npx (Node 18+):
+npx @try-loopers/audit
+
+# Or run directly if you have loopers installed:
+loopers audit
+```
+
+* **What it audits:** Scans your real workspace files (`SOUL.md`, `MEMORY.md`), discovers MCP configs (`openclaw.json`, `zeroclaw.toml`, `.mcp.json`), replays `.jsonl` session logs, and calculates exact monthly dollar waste vs. Loopers savings.
+* **Auto-generate your config:** Run `loopers audit --fix` to automatically generate a tailored `loopers.yaml` pre-configured with all discovered FinOps & security controls.
+* **Test live with 0 Redis setup:** Run `loopers exec -- <your-agent-command>`. Loopers automatically boots an in-process, zero-dependency memory store with an inline `$10.00` safety lease so you get immediate live savings on your very next turn.
+
 ### Prerequisites
 - **Go 1.26.6+** or **Docker**
 - **Redis 7+** (required for atomic state and budget governance)
@@ -369,6 +418,7 @@ Loopers sits directly on the OS pipe:
 | `loopers mcp bridge` | Bridges local standard I/O (stdin/stdout) JSON-RPC agents to the Loopers HTTP firewall proxy. |
 | `loopers serve` | Starts the firewall proxy server and admin metrics listener. Accepts `--presets` and `--config`. |
 | `loopers init` | Interactive terminal UI (TUI) wizard to generate a production-ready `loopers.yaml`. |
+| `loopers audit [dir]` | Run a zero-config FinOps & Blast-Radius X-Ray on any agent workspace or MCP config. Supports `--fix`, `--share`, `--model`, `--provider`, `--mcp-url`, `--trace`. |
 | `loopers doctor` | Verifies Redis connectivity, pricing configuration, policy directories, and dependencies. |
 | `loopers exec -- <cmd>` | Wraps and executes agent CLI binaries with transparent proxy injection and auto-detected providers. |
 | `loopers verify -t <trace>` | Audits historical agent execution traces offline against security policies. Supports `--format json` for CI/CD. |

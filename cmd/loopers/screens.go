@@ -11,6 +11,8 @@ func runScreen(action string) {
 	switch action {
 	case "screen_init":
 		screenInit()
+	case "screen_audit":
+		screenAudit()
 	case "screen_doctor":
 		screenDoctor()
 	case "screen_keys":
@@ -48,6 +50,11 @@ func pressEnterToContinue() {
 		WithTheme(ui.GetHuhTheme()).
 		WithKeyMap(ui.GetHuhKeyMap()).
 		Run()
+}
+
+func screenAudit() {
+	auditCmd.Run(auditCmd, []string{})
+	pressEnterToContinue()
 }
 
 func screenDoctor() {

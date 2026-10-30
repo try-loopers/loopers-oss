@@ -11,6 +11,20 @@ Stay up to date with the newest capabilities we've added to the Loopers cost fir
 
 ---
 
+## Zero-Config Agent FinOps & Blast-Radius Diagnostic (`loopers audit`)
+
+Loopers now features a standalone, zero-dependency diagnostic X-Ray command that scans any AI agent workspace or Model Context Protocol configuration with **zero Redis, zero Docker, and zero network proxy setup required**:
+
+- **Instant Terminal Scorecard & Multi-Turn Waste Analysis**: Automatically discovers local agent harnesses (OpenClaw, ZeroClaw, OpenCode, CrewAI, LangGraph), parses workspace files (`SOUL.md`, `MEMORY.md`), detects cache-busting volatile timestamps, and minifies MCP tool schemas (`mcp.SanitizeToolList`).
+- **Session Baggage Replay**: Replays `.jsonl` session histories to identify multi-kilobyte tool responses (>4KB) repeatedly resent on subsequent turns, computing tokens reclaimable via Ghost Token stubs.
+- **Intrinsic Blast-Radius Scoring**: Runs `blastradius.Calculate` across all registered tools, identifying destructive shell, file write, and DB execution verbs with intrinsic risk scores (0–100).
+- **Tailored YAML Generator (`--fix`)**: Automatically generates a production-ready `loopers.yaml` pre-configured with all discovered FinOps & security controls.
+- **Copy-Paste Sharing (`--share`)**: Generates a formatted Markdown table with attribution link for GitHub Issues, Reddit, and X.
+- **Zero-Redis In-Process Firewall (`loopers exec`)**: If Redis is not running locally, `loopers exec` automatically boots an in-process memory store with an inline `$10.00` safety lease, allowing developers to test Loopers inline immediately after running `loopers audit` with zero setup.
+- **Zero-Install Runners**: Available via `curl -sSL https://tryloopers.com/audit.sh | sh` and `npx @try-loopers/audit`.
+
+---
+
 ## Inline Context Acceleration & Wire FinOps (Normal Days Optimization)
 Loopers AI Firewall now features an integrated inline acceleration engine to drastically cut token consumption and baseline costs on healthy production agent traffic:
 - **Ghost Token Side-Channel Offloading (`internal/proxy/ghost.go`)**: Bulky tool outputs (MCP responses, SQL payloads > 512 bytes) are encrypted via AES-256-GCM / HKDF and offloaded to local Redis, replaced in intermediate prompt context by lightweight, schema-compliant Ghost Stubs (~80 tokens). Yields **65% to 75% input token compression**.

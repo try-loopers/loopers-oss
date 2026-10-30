@@ -26,7 +26,7 @@ arg-research-material.md
 final_results.md
 docs/*.md
 graphify-out/
-bin/
+/bin/
 *.exe
 *.exe~
 .agents/
@@ -75,3 +75,5 @@ internal/signature/signer_test.go
 
 firewall-research-deepseek.md
 article_*.md
+
+loopers_audit_command.md

@@ -22,6 +22,26 @@ Before starting, you will need:
 * Go 1.25 or higher (required when building from source)
 * Docker and Docker Compose (recommended for running Redis)
 
+## Step 0: Instant Diagnostic (Zero Dependencies / Zero Setup)
+
+Before deploying a proxy or configuring a Redis instance, you can run a read-only audit of your local agent workspace (OpenClaw, ZeroClaw, OpenCode, CrewAI, LangGraph, or custom MCP configs) to inspect prompt prefix bloat, measure compressible MCP schemas, replay `.jsonl` session histories, and score tool blast-radius risk:
+
+```bash
+# Instant zero-install diagnostic runner (macOS / Linux / WSL):
+curl -sSL https://tryloopers.com/audit.sh | sh
+
+# Or run via npx (Node 18+):
+npx @try-loopers/audit
+
+# Or run directly if you have loopers installed:
+loopers audit
+```
+
+* **Instant Tailored Configuration:** Pass `--fix` (`loopers audit --fix`) to automatically generate a `loopers.yaml` pre-configured with all discovered FinOps & security controls.
+* **Inline Protection Without Redis:** Run `loopers exec -- <your-agent-command>`. Loopers automatically boots an embedded, in-process memory store with an inline `$10.00` safety lease, delivering live Ghost Token and circuit-breaker protection on your very next turn with zero Redis configuration.
+
+---
+
 ## Method 1: Docker (Recommended)
 
 This is the fastest way to run Loopers in production or local development without installing Go.

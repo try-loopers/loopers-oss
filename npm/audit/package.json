@@ -1,0 +1,23 @@
+{
+  "name": "@try-loopers/audit",
+  "version": "2.23.1",
+  "description": "Zero-config FinOps & Blast-Radius X-Ray for AI agents (OpenClaw, ZeroClaw, OpenCode, MCP)",
+  "bin": {
+    "audit": "./bin/audit.js",
+    "loopers-audit": "./bin/audit.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/try-loopers/loopers-oss.git"
+  },
+  "keywords": [
+    "mcp",
+    "openclaw",
+    "zeroclaw",
+    "ai-agents",
+    "finops",
+    "llm-firewall"
+  ],
+  "license": "MIT"
+}
+

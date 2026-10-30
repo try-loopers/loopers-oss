@@ -143,6 +143,20 @@ URL pattern: `http://localhost:8080/<proxy-key>/<provider>/v1/<path>`
 -h, --help
 ```
 
+### loopers audit
+Run an instant, zero-dependency diagnostic X-Ray of an agent workspace or MCP config with zero Redis required.
+```bash
+loopers audit [directory] [--fix] [--share] [--model <model>] [--provider <provider>]
+```
+Flags:
+- `--fix`: Automatically generate a tailored `loopers.yaml` with discovered FinOps & security controls enabled
+- `--share`: Print a copy-pasteable Markdown table for GitHub Issues, Reddit, or X
+- `--model`: Benchmark model to price against (e.g. `claude-sonnet-4-6`, `deepseek/deepseek-v4-pro`)
+- `--provider`: LLM provider (`anthropic`, `openai`, `openrouter`, `deepseek`)
+- `--mcp-url`: Live HTTP MCP server URL to probe via `tools/list`
+- `--trace`: Path to a `.jsonl` session trace file or directory to replay
+- `--offline`: Skip remote pricing sync and run strictly offline
+
 ### loopers init
 Interactively generates `loopers.yaml` and `docker-compose.yml` in the current directory.
 ```bash
