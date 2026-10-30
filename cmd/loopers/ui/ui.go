@@ -53,19 +53,30 @@ func PrintTable(headers []string, rows [][]string) {
 	}
 	out.WriteString("\n")
 
+	// Render divider
+	for i := range headers {
+		out.WriteString(styleInfo.Render(strings.Repeat("─", widths[i])))
+		if i < len(headers)-1 {
+			out.WriteString(styleInfo.Render("─┼─"))
+		}
+	}
+	out.WriteString("\n")
+
 	// Render rows
 	for _, row := range rows {
 		for i, c := range row {
-			cell := lipgloss.NewStyle().Width(widths[i]).Render(c)
-			out.WriteString(cell)
-			if i < len(row)-1 {
-				out.WriteString(styleInfo.Render(" │ "))
+			if i < len(widths) {
+				cell := lipgloss.NewStyle().Width(widths[i]).Render(c)
+				out.WriteString(cell)
+				if i < len(widths)-1 {
+					out.WriteString(styleInfo.Render(" │ "))
+				}
 			}
 		}
 		out.WriteString("\n")
 	}
 
-	fmt.Println(styleTableBorder.Render(out.String()))
+	fmt.Println(styleTableBorder.Render(strings.TrimRight(out.String(), "\n")))
 }
 
 func PrintBudgetBar(name string, spend, limit float64) {

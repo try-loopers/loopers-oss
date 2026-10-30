@@ -38,8 +38,6 @@ var (
 				BorderForeground(colorBorderStrong)
 
 	styleTableHdr = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), false, false, true, false).
-			BorderForeground(colorBorderStrong).
 			Foreground(colorTextPrimary).
 			Bold(true)
 
