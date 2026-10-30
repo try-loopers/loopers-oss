@@ -947,4 +947,3 @@ func buildSyntheticToolsListJSON(toolNames []string) []byte {
 	b, _ := json.Marshal(payload)
 	return b
 }
-

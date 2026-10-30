@@ -95,9 +95,9 @@ func DefaultStore() *Store {
 			"openrouter": {
 				DefaultMaxOutputTokens: 4096,
 				Models: map[string]ModelPrice{
-					"deepseek/deepseek-v4-pro":           {InputPer1M: 0.22, OutputPer1M: 0.44, CacheReadPer1M: 0.018, CacheWritePer1M: 0.22, Tier: "frontier", FastTier: "deepseek/deepseek-v4.1-flash-1017"},
+					"deepseek/deepseek-v4-pro":          {InputPer1M: 0.22, OutputPer1M: 0.44, CacheReadPer1M: 0.018, CacheWritePer1M: 0.22, Tier: "frontier", FastTier: "deepseek/deepseek-v4.1-flash-1017"},
 					"deepseek/deepseek-v4.1-flash-1017": {InputPer1M: 0.01569, OutputPer1M: 0.6439, CacheReadPer1M: 0.007845, CacheWritePer1M: 0.01569, Tier: "fast"},
-					"_fallback":                          {InputPer1M: 1.00, OutputPer1M: 3.00},
+					"_fallback":                         {InputPer1M: 1.00, OutputPer1M: 3.00},
 				},
 			},
 			"deepseek": {

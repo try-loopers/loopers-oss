@@ -160,4 +160,3 @@ func TestAudit_StartEmbeddedFirewallIfNeeded(t *testing.T) {
 		t.Errorf("expected status 200 on /health, got %d", resp.StatusCode)
 	}
 }
-
