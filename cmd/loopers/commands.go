@@ -17,6 +17,9 @@ import (
 	"sync"
 	"time"
 
+	"runtime"
+
+	"github.com/alicebob/miniredis/v2"
 	"github.com/charmbracelet/huh"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -778,23 +781,142 @@ var initCmd = &cobra.Command{
 	},
 }
 
+// startEmbeddedFirewallIfNeeded checks if a Loopers firewall is already listening at proxyURL.
+// If not (or if LOOPERS_PROXY_KEY is unset), it boots an in-process miniredis + Loopers firewall
+// with Ghost Tokens, Schema Minification, Read Memoization, and a $10 daily safety cap enabled,
+// returning the active proxyURL, rawKey, and a cleanup function.
+func startEmbeddedFirewallIfNeeded(proxyURL, proxyKey, provider string) (string, string, func()) {
+	// If the user provided a key and the external Loopers daemon is healthy, use it directly
+	if proxyKey != "" {
+		client := &http.Client{Timeout: 500 * time.Millisecond}
+		if resp, err := client.Get(proxyURL + "/health"); err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return proxyURL, proxyKey, func() {}
+			}
+		}
+	}
+
+	// Zero-Config Ephemeral Bootstrap (solves the post-audit Conversion Cliff)
+	var mr *miniredis.Miniredis
+	var redisClient *budget.Client
+	var err error
+
+	addr := viper.GetString("redis.addr")
+	if addr == "" {
+		addr = "localhost:6379"
+	}
+	if conn, dErr := net.DialTimeout("tcp", addr, 150*time.Millisecond); dErr == nil {
+		_ = conn.Close()
+		redisClient, err = getRedisClient()
+	}
+
+	if redisClient == nil || err != nil {
+		mr, err = miniredis.Run()
+		if err != nil {
+			logging.Logger.Fatal().Err(err).Msg("failed to start embedded state store")
+		}
+		viper.Set("redis.addr", mr.Addr())
+		redisClient, err = budget.NewClient(mr.Addr(), "", 0)
+		if err != nil {
+			logging.Logger.Fatal().Err(err).Msg("failed to connect to embedded state store")
+		}
+	}
+
+	// Enable Regime 1 (Loop Detection) + Regime 2 (Ghost Tokens, Schema Minifier, Read Memoizer) by default
+	if !viper.IsSet("loop_detection.enabled") {
+		viper.Set("loop_detection.enabled", true)
+	}
+	if !viper.IsSet("mcp.enabled") {
+		viper.Set("mcp.enabled", true)
+	}
+	if !viper.IsSet("mcp.ghost_tokens.enabled") {
+		viper.Set("mcp.ghost_tokens.enabled", true)
+		viper.Set("mcp.ghost_tokens.threshold_bytes", 4096)
+		viper.Set("mcp.ghost_tokens.ttl_seconds", 1800)
+	}
+	if !viper.IsSet("mcp.sanitizer.minify_schemas") {
+		viper.Set("mcp.sanitizer.minify_schemas", true)
+	}
+	if !viper.IsSet("mcp.memoize_read_only") {
+		viper.Set("mcp.memoize_read_only", true)
+	}
+
+	// Load local pricing.yaml or fallback to embedded DefaultStore + non-blocking remote sync
+	pricingStore := pricing.DefaultStore()
+	pricingPath := viper.GetString("pricing_path")
+	if pricingPath == "" {
+		pricingPath = "./pricing.yaml"
+	}
+	if localStore, lErr := pricing.LoadStore(pricingPath); lErr == nil {
+		pricingStore = localStore
+	} else {
+		ua := fmt.Sprintf("loopers-oss/2.23.1 (cmd=exec-ephemeral; os=%s; arch=%s; provider=%s)",
+			runtime.GOOS, runtime.GOARCH, provider)
+		if remoteCfg, rErr := pricing.FetchRemotePricingWithUA(pricing.DefaultRemotePricingURL, ua, 1200*time.Millisecond); rErr == nil && remoteCfg != nil {
+			pricingStore.MergeRemote(remoteCfg.Providers)
+		}
+	}
+
+	// Auto-provision an ephemeral key and $10.00 daily safety budget if LOOPERS_PROXY_KEY was not set
+	rawKey := proxyKey
+	if rawKey == "" {
+		rawKey, _ = keyring.GenerateRawKey()
+	}
+	hash := keyring.HashKey(rawKey)
+	ctx := context.Background()
+	rdb := redisClient.GetUnderlyingClient()
+	_ = rdb.HSet(ctx, fmt.Sprintf("loopers:key:%s", hash), map[string]interface{}{
+		"name":       "ephemeral-exec-key",
+		"provider":   provider,
+		"created_at": time.Now().UTC().Format(time.RFC3339),
+		"active":     "true",
+	}).Err()
+	_ = rdb.HSet(ctx, fmt.Sprintf("loopers:budget:{%s}:config", hash), map[string]interface{}{
+		"daily": "10.00",
+	}).Err()
+
+	budget.InitConfigCache()
+	s := server.NewServer(redisClient, pricingStore)
+
+	fwListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		logging.Logger.Fatal().Err(err).Msg("failed to bind embedded firewall port")
+	}
+	fwPort := fwListener.Addr().(*net.TCPAddr).Port
+	embeddedURL := fmt.Sprintf("http://127.0.0.1:%d", fwPort)
+
+	go func() {
+		_ = http.Serve(fwListener, s.GetHandler())
+	}()
+
+	ui.Success(fmt.Sprintf("Loopers Firewall active inline (%s · Ghost Tokens: ON · Daily Cap: $10.00)", provider))
+
+	cleanup := func() {
+		if status, sErr := redisClient.GetBudgetStatus(ctx, hash); sErr == nil {
+			if daily, ok := status["daily"]; ok && (daily.CurrentSpend > 0 || daily.SavedUSD > 0) {
+				fmt.Println()
+				ui.PrintHeader("◎ Loopers Session FinOps Receipt")
+				fmt.Printf("  Session Spend: $%.4f / $%.2f  │  Saved by Loopers: $%.4f\n",
+					daily.CurrentSpend, daily.Limit, daily.SavedUSD)
+			}
+		}
+		_ = fwListener.Close()
+		_ = redisClient.Close()
+		if mr != nil {
+			mr.Close()
+		}
+	}
+
+	return embeddedURL, rawKey, cleanup
+}
+
 var execCmd = &cobra.Command{
 	Use:   "exec -- <command...>",
 	Short: "Execute an agent command with Loopers firewall environment variables and transparent proxying injected",
 	Long:  "Wrap and monitor autonomous AI agents (Aider, OpenHands, Claude, Pi, Codex, OpenCode, DeepSeek Harness) with transparent firewall proxying, budget caps, and DLP enforcement.",
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		proxyKey := os.Getenv("LOOPERS_PROXY_KEY")
-		if proxyKey == "" {
-			logging.Logger.Fatal().Msg("LOOPERS_PROXY_KEY environment variable is required. Unix: export LOOPERS_PROXY_KEY=lp-xxx | Windows (PS): $env:LOOPERS_PROXY_KEY=\"lp-xxx\"")
-		}
-
-		proxyURL := os.Getenv("LOOPERS_PROXY_URL")
-		if proxyURL == "" {
-			proxyURL = "http://localhost:8080"
-		}
-		proxyURL = strings.TrimSuffix(proxyURL, "/")
-
 		provider := os.Getenv("LOOPERS_PROVIDER")
 		if provider == "" {
 			// Auto-detect provider from the CLI executable name.
@@ -822,6 +944,17 @@ var execCmd = &cobra.Command{
 			}
 			logging.Logger.Info().Msgf("LOOPERS_PROVIDER not set. Auto-detected provider '%s' from executable '%s'. Set LOOPERS_PROVIDER to override.", provider, executable)
 		}
+
+		proxyKey := os.Getenv("LOOPERS_PROXY_KEY")
+		proxyURL := os.Getenv("LOOPERS_PROXY_URL")
+		if proxyURL == "" {
+			proxyURL = "http://localhost:8080"
+		}
+		proxyURL = strings.TrimSuffix(proxyURL, "/")
+
+		var cleanupEmbedded func()
+		proxyURL, proxyKey, cleanupEmbedded = startEmbeddedFirewallIfNeeded(proxyURL, proxyKey, provider)
+		defer cleanupEmbedded()
 
 		targetURLStr := fmt.Sprintf("%s/%s", proxyURL, provider)
 		targetURL, err := url.Parse(targetURLStr)

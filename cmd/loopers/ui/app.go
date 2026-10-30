@@ -24,6 +24,7 @@ var menuItems = []struct {
 	action string
 }{
 	{"Quick Start / Init", "screen_init"},
+	{"Agent Context & Cost Audit (Zero-Config)", "screen_audit"},
 	{"Diagnostics", "screen_doctor"},
 	{"Keys & Agent Identity", "screen_keys"},
 	{"Budgets & Rate Limits", "screen_budget"},

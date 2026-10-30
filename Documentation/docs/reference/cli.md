@@ -14,6 +14,7 @@ The loopers command line application allows you to manage keys, budgets, and the
 | Command | Description |
 |---|---|
 | loopers | Interactive terminal UI (TUI) dashboard with live auto-refreshing FinOps Scorecard |
+| loopers audit | Run a zero-config FinOps & Blast-Radius X-Ray on any agent workspace or MCP config |
 | loopers init | Interactive setup wizard that generates loopers.yaml and docker-compose.yml |
 | loopers serve | Start the proxy server |
 | loopers mcp wrap | Transparently wrap local subprocess MCP tools over stdio with Schema Minifier & Ghost Tokens |
@@ -288,6 +289,35 @@ Spawns a local MCP server subprocess, intercepts its JSON-RPC standard I/O strea
 ```bash
 loopers mcp wrap --server notion --key lp-your-proxy-key -- npx.cmd -y mcp-remote https://mcp.notion.com/mcp
 ```
+
+---
+
+## loopers audit
+
+```bash
+loopers audit [directory] [flags]
+```
+
+Run an instant, zero-dependency diagnostic X-Ray of an AI agent workspace or Model Context Protocol configuration with **zero Redis, zero Docker, and zero proxy keys required**.
+
+### Diagnostic Capabilities
+
+1. **Static Context & Prefix Bloat**: Scans workspace prompt files (`SOUL.md`, `MEMORY.md`, `AGENTS.md`) and flags cache-busting volatile timestamps.
+2. **MCP Schema Minification & Blast Radius**: Discovers MCP tool configs (`openclaw.json`, `zeroclaw.toml`, `.mcp.json`) or queries live HTTP MCP endpoints (`tools/list`). Minifies schemas to calculate compressible token bloat and calculates deterministic blast-radius risk scores (0–100) across all registered tools.
+3. **Session Baggage Replay**: Replays `.jsonl` session histories to identify multi-kilobyte tool responses (>4KB) repeatedly resent on subsequent turns, computing tokens reclaimable via Ghost Token stubs.
+4. **FinOps Scorecard & Actionable Conversion**: Computes estimated 30-day LLM spend vs. Loopers savings, assigns a Runaway Protection Grade, and provides `--fix` to generate a production-ready `loopers.yaml`.
+
+### Flags
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--fix` | boolean | `false` | Automatically generate a tailored `loopers.yaml` with discovered FinOps & security controls enabled |
+| `--share` | boolean | `false` | Print a copy-pasteable Markdown table for GitHub Issues, Reddit, or X |
+| `--provider` | string | `""` | LLM provider for cost calculation (`anthropic`, `openai`, `openrouter`, `deepseek`) |
+| `--model` | string | `""` | Benchmark model to price against (e.g. `claude-sonnet-4-6`, `deepseek/deepseek-v4-pro`) |
+| `--mcp-url` | string | `""` | Optional live HTTP MCP server URL to probe via `tools/list` |
+| `--trace` | string | `""` | Optional path to a `.jsonl` session trace file or directory to replay |
+| `--offline` | boolean | `false` | Skip remote pricing catalog sync and run strictly offline |
 
 ---
 

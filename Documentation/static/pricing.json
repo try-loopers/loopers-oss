@@ -1,0 +1,506 @@
+{
+  "providers": {
+    "openai": {
+      "default_max_output_tokens": 16384,
+      "models": {
+        "gpt-5.4": {
+          "input_per_1m": 30.0,
+          "output_per_1m": 180.0,
+          "tier": "frontier"
+        },
+        "gpt-5.4-pro": {
+          "input_per_1m": 150.0,
+          "output_per_1m": 600.0,
+          "tier": "frontier"
+        },
+        "gpt-5": {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10.0,
+          "tier": "frontier"
+        },
+        "gpt-5.2": {
+          "input_per_1m": 1.5,
+          "output_per_1m": 14.0,
+          "tier": "frontier"
+        },
+        "gpt-4.1": {
+          "input_per_1m": 2.0,
+          "output_per_1m": 8.0,
+          "tier": "frontier"
+        },
+        "gpt-4.1-nano": {
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.4,
+          "tier": "fast"
+        },
+        "gpt-4o": {
+          "input_per_1m": 2.5,
+          "output_per_1m": 10.0,
+          "cache_read_per_1m": 1.25,
+          "cache_write_per_1m": 2.5,
+          "tier": "frontier",
+          "fast_tier": "gpt-4o-mini"
+        },
+        "gpt-4o-mini": {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6,
+          "cache_read_per_1m": 0.075,
+          "cache_write_per_1m": 0.15,
+          "tier": "fast"
+        },
+        "o3": {
+          "input_per_1m": 20.0,
+          "output_per_1m": 80.0,
+          "cache_read_per_1m": 10.0,
+          "cache_write_per_1m": 20.0,
+          "tier": "frontier",
+          "fast_tier": "o4-mini"
+        },
+        "o4-mini": {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 1.1,
+          "tier": "fast"
+        },
+        "o1": {
+          "input_per_1m": 15.0,
+          "output_per_1m": 60.0,
+          "cache_read_per_1m": 7.5,
+          "cache_write_per_1m": 15.0,
+          "tier": "frontier",
+          "fast_tier": "o1-mini"
+        },
+        "o1-mini": {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 1.1,
+          "tier": "fast"
+        },
+        "o3-mini": {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.55,
+          "cache_write_per_1m": 1.1,
+          "tier": "fast"
+        },
+        "gpt-4-turbo": {
+          "input_per_1m": 10.0,
+          "output_per_1m": 30.0,
+          "tier": "frontier",
+          "fast_tier": "gpt-4o-mini"
+        },
+        "gpt-4": {
+          "input_per_1m": 30.0,
+          "output_per_1m": 60.0,
+          "tier": "frontier",
+          "fast_tier": "gpt-4o-mini"
+        },
+        "gpt-3.5-turbo": {
+          "input_per_1m": 0.5,
+          "output_per_1m": 1.5,
+          "tier": "fast"
+        },
+        "_fallback": {
+          "input_per_1m": 30.0,
+          "output_per_1m": 180.0
+        }
+      }
+    },
+    "anthropic": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "claude-opus-4-6": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 25.0,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25,
+          "tier": "frontier",
+          "fast_tier": "claude-sonnet-4-6"
+        },
+        "claude-sonnet-4-6": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 15.0,
+          "cache_read_per_1m": 0.3,
+          "cache_write_per_1m": 3.75,
+          "tier": "frontier",
+          "fast_tier": "claude-haiku-4-5"
+        },
+        "claude-haiku-4-5": {
+          "input_per_1m": 1.0,
+          "output_per_1m": 5.0,
+          "cache_read_per_1m": 0.1,
+          "cache_write_per_1m": 1.25,
+          "tier": "fast"
+        },
+        "claude-3-7-sonnet": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 15.0,
+          "cache_read_per_1m": 0.3,
+          "cache_write_per_1m": 3.75,
+          "tier": "frontier",
+          "fast_tier": "claude-3-5-haiku"
+        },
+        "claude-3-5-sonnet": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 15.0,
+          "cache_read_per_1m": 0.3,
+          "cache_write_per_1m": 3.75,
+          "tier": "frontier",
+          "fast_tier": "claude-3-5-haiku"
+        },
+        "claude-3-5-haiku": {
+          "input_per_1m": 0.8,
+          "output_per_1m": 4.0,
+          "cache_read_per_1m": 0.08,
+          "cache_write_per_1m": 1.0,
+          "tier": "fast"
+        },
+        "claude-3-opus": {
+          "input_per_1m": 15.0,
+          "output_per_1m": 75.0,
+          "cache_read_per_1m": 1.5,
+          "cache_write_per_1m": 18.75,
+          "tier": "frontier",
+          "fast_tier": "claude-3-5-sonnet"
+        },
+        "claude-3-sonnet": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 15.0,
+          "cache_read_per_1m": 0.3,
+          "cache_write_per_1m": 3.75,
+          "tier": "frontier",
+          "fast_tier": "claude-3-haiku"
+        },
+        "claude-3-haiku": {
+          "input_per_1m": 0.25,
+          "output_per_1m": 1.25,
+          "cache_read_per_1m": 0.025,
+          "cache_write_per_1m": 0.3125,
+          "tier": "fast"
+        },
+        "_fallback": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 25.0
+        }
+      }
+    },
+    "gemini": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "gemini-3.5-pro": {
+          "input_per_1m": 1.25,
+          "output_per_1m": 5.0,
+          "tier": "frontier"
+        },
+        "gemini-3.5-flash": {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6,
+          "tier": "fast"
+        },
+        "gemini-2.5-pro": {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10.0,
+          "tier": "frontier"
+        },
+        "gemini-2.5-flash": {
+          "input_per_1m": 0.15,
+          "output_per_1m": 3.5,
+          "tier": "fast"
+        },
+        "gemini-1.5-pro": {
+          "input_per_1m": 1.25,
+          "output_per_1m": 5.0,
+          "tier": "frontier",
+          "fast_tier": "gemini-1.5-flash"
+        },
+        "gemini-1.5-flash": {
+          "input_per_1m": 0.075,
+          "output_per_1m": 0.3,
+          "tier": "fast"
+        },
+        "gemini-2.0-flash": {
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.4,
+          "tier": "fast"
+        },
+        "gemini-2.0-flash-lite": {
+          "input_per_1m": 0.075,
+          "output_per_1m": 0.3,
+          "tier": "fast"
+        },
+        "_fallback": {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10.0
+        }
+      }
+    },
+    "bedrock": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "anthropic.claude-3-5-sonnet-20240620-v1:0": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 15.0
+        },
+        "anthropic.claude-3-opus-20240229-v1:0": {
+          "input_per_1m": 15.0,
+          "output_per_1m": 75.0
+        },
+        "meta.llama3-1-400b-instruct-v1:0": {
+          "input_per_1m": 2.65,
+          "output_per_1m": 2.65
+        },
+        "_fallback": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 25.0
+        }
+      }
+    },
+    "mistral": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "mistral-large-latest": {
+          "input_per_1m": 2.0,
+          "output_per_1m": 6.0,
+          "tier": "frontier"
+        },
+        "mistral-medium-latest": {
+          "input_per_1m": 2.7,
+          "output_per_1m": 8.1,
+          "tier": "frontier"
+        },
+        "mistral-small-latest": {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.6,
+          "tier": "fast"
+        },
+        "codestral-latest": {
+          "input_per_1m": 0.3,
+          "output_per_1m": 0.9,
+          "tier": "fast"
+        },
+        "_fallback": {
+          "input_per_1m": 2.7,
+          "output_per_1m": 8.1
+        }
+      }
+    },
+    "azure": {
+      "default_max_output_tokens": 16384,
+      "models": {
+        "_fallback": {
+          "input_per_1m": 30.0,
+          "output_per_1m": 180.0
+        }
+      }
+    },
+    "groq": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "llama3-70b-8192": {
+          "input_per_1m": 0.59,
+          "output_per_1m": 0.79
+        },
+        "_fallback": {
+          "input_per_1m": 1.0,
+          "output_per_1m": 1.0
+        }
+      }
+    },
+    "cohere": {
+      "default_max_output_tokens": 4096,
+      "models": {
+        "command-r-plus": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 15.0,
+          "tier": "frontier"
+        },
+        "_fallback": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 15.0
+        }
+      }
+    },
+    "deepseek": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "deepseek-v4-flash": {
+          "input_per_1m": 0.44,
+          "output_per_1m": 1.32,
+          "tier": "fast"
+        },
+        "deepseek-v4-pro": {
+          "input_per_1m": 1.32,
+          "output_per_1m": 3.96,
+          "tier": "frontier"
+        },
+        "deepseek-chat": {
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.28,
+          "tier": "fast"
+        },
+        "deepseek-reasoner": {
+          "input_per_1m": 0.55,
+          "output_per_1m": 2.19,
+          "tier": "frontier"
+        },
+        "_fallback": {
+          "input_per_1m": 1.32,
+          "output_per_1m": 3.96
+        }
+      }
+    },
+    "together": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "meta-llama/Llama-3-70b-chat-hf": {
+          "input_per_1m": 0.9,
+          "output_per_1m": 0.9
+        },
+        "_fallback": {
+          "input_per_1m": 0.9,
+          "output_per_1m": 0.9
+        }
+      }
+    },
+    "ollama": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "_fallback": {
+          "input_per_1m": 0.0,
+          "output_per_1m": 0.0
+        }
+      }
+    },
+    "fireworks": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "accounts/fireworks/models/llama-v3-70b-instruct": {
+          "input_per_1m": 0.9,
+          "output_per_1m": 0.9
+        },
+        "_fallback": {
+          "input_per_1m": 0.9,
+          "output_per_1m": 0.9
+        }
+      }
+    },
+    "xai": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "grok-beta": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 15.0
+        },
+        "_fallback": {
+          "input_per_1m": 5.0,
+          "output_per_1m": 15.0
+        }
+      }
+    },
+    "vllm": {
+      "default_max_output_tokens": 8192,
+      "models": {
+        "_fallback": {
+          "input_per_1m": 0.0,
+          "output_per_1m": 0.0
+        }
+      }
+    },
+    "openrouter": {
+      "default_max_output_tokens": 16384,
+      "models": {
+        "deepseek/deepseek-v4-pro": {
+          "input_per_1m": 0.22,
+          "output_per_1m": 0.44,
+          "cache_read_per_1m": 0.018,
+          "tier": "frontier",
+          "fast_tier": "deepseek/deepseek-v4.1-flash-1017"
+        },
+        "deepseek/deepseek-v4.1-flash-1017": {
+          "input_per_1m": 0.01569,
+          "output_per_1m": 0.6439,
+          "cache_read_per_1m": 0.007845,
+          "cache_write_per_1m": 0.01569,
+          "tier": "fast"
+        },
+        "deepseek/deepseek-chat": {
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.28,
+          "tier": "fast"
+        },
+        "deepseek/deepseek-reasoner": {
+          "input_per_1m": 0.55,
+          "output_per_1m": 2.19,
+          "tier": "frontier",
+          "fast_tier": "deepseek/deepseek-chat"
+        },
+        "openai/gpt-4o": {
+          "input_per_1m": 2.5,
+          "output_per_1m": 10.0,
+          "cache_read_per_1m": 1.25,
+          "tier": "frontier",
+          "fast_tier": "openai/gpt-4o-mini"
+        },
+        "openai/gpt-4o-mini": {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6,
+          "cache_read_per_1m": 0.075,
+          "tier": "fast"
+        },
+        "anthropic/claude-3.5-sonnet": {
+          "input_per_1m": 3.0,
+          "output_per_1m": 15.0,
+          "cache_read_per_1m": 0.3,
+          "tier": "frontier",
+          "fast_tier": "anthropic/claude-3.5-haiku"
+        },
+        "anthropic/claude-3.5-haiku": {
+          "input_per_1m": 0.8,
+          "output_per_1m": 4.0,
+          "cache_read_per_1m": 0.08,
+          "tier": "fast"
+        },
+        "nvidia/nemotron-3.5-super-vl:free": {
+          "input_per_1m": 0.0,
+          "output_per_1m": 0.0,
+          "cache_read_per_1m": 0.0,
+          "cache_write_per_1m": 0.0
+        },
+        "_fallback": {
+          "input_per_1m": 1.0,
+          "output_per_1m": 3.0
+        }
+      }
+    }
+  },
+  "tool_costs": {
+    "defaults": {
+      "unknown_tool": 0.001
+    },
+    "tools": {
+      "snowflake_query": {
+        "cost_per_call": 0.05
+      },
+      "github_api": {
+        "cost_per_call": 0.001
+      },
+      "web_search": {
+        "cost_per_call": 0.01
+      },
+      "database_read": {
+        "cost_per_call": 0.005
+      },
+      "database_write": {
+        "cost_per_call": 0.01
+      },
+      "file_read": {
+        "cost_per_call": 0.0001
+      },
+      "file_write": {
+        "cost_per_call": 0.001
+      }
+    }
+  }
+}

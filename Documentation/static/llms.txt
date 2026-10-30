@@ -20,6 +20,7 @@ Loopers is a Go binary that proxies and secures AI API calls. Requests from your
 - `LOOPERS_PROVIDER`  -  used by `loopers exec` to specify upstream provider (e.g. `openai`, `anthropic`, `openrouter`). Auto-detected for aider, openhands, pi, claude, gemini, codex, opencode, dsh, deepseek-harness, deepseek.
 
 **Core CLI commands:**
+- `loopers audit [directory] [--fix] [--share]`  -  zero-config FinOps & blast-radius X-Ray of agent workspaces and MCP configs (zero Redis required)
 - `loopers init`  -  interactively initialize Loopers AI firewall configuration
 - `loopers serve`  -  starts the Loopers AI firewall runtime server (reads `loopers.yaml`)
 - `loopers doctor`  -  diagnoses firewall config, Redis connectivity, and security engines

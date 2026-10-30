@@ -44,7 +44,8 @@ Loopers is the bare-metal AI Firewall for the Agentic Era. It is written in Go a
 ```
 .
 ├── cmd/
-│   ├── loopers/                   # CLI entrypoint (serve, keys, budget, init, mcp wrap/bridge, TUI screens)
+│   ├── loopers/                   # CLI entrypoint (serve, keys, budget, init, audit, mcp wrap/bridge, TUI screens)
+│   │   ├── audit.go               # Zero-config FinOps & Blast-Radius X-Ray diagnostic engine
 │   │   ├── mcp.go                 # Universal stdio MCP bridge and transparent subprocess wrapper
 │   │   └── screen_finops.go       # Live Bubble Tea FinOps scorecard TUI with 1s auto-refresh ticker
 │   └── pricing-validator/         # Pricing schema validator CLI
@@ -117,6 +118,27 @@ For pre-built agent frameworks (like `opencode`, `codex`, or any OpenAI-compatib
 ---
 
 ## 6. Core CLI Commands
+
+**Zero-Config Workspace & FinOps Audit (Zero Redis Required):**
+```bash
+# Run read-only diagnostic on any agent workspace or MCP config:
+loopers audit [directory]
+
+# Automatically generate pre-configured loopers.yaml with discovered settings:
+loopers audit --fix
+
+# Print copy-pasteable Markdown scorecard for GitHub/Reddit/X sharing:
+loopers audit --share
+
+# Benchmark against a specific model/provider:
+loopers audit --provider anthropic --model claude-sonnet-4-6
+
+# Probe live HTTP MCP server:
+loopers audit --mcp-url http://localhost:3000/mcp
+
+# Skip remote pricing sync and run strictly offline:
+loopers audit --offline
+```
 
 **Initialize Configuration:**
 ```bash
