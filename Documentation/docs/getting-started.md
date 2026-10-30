@@ -31,7 +31,7 @@ Before deploying a proxy or configuring a Redis instance, you can run a read-onl
 curl -sSL https://tryloopers.com/audit.sh | sh
 
 # Or run via npx (Node 18+):
-npx @try-loopers/audit
+npx @loopers/audit
 
 # Or run directly if you have loopers installed:
 loopers audit

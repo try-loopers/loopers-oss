@@ -28,7 +28,7 @@ Before deploying a proxy or provisioning Redis, inspect your local agent workspa
 curl -sSL https://tryloopers.com/audit.sh | sh
 
 # Or run instantly via npx (Node 18+):
-npx @try-loopers/audit
+npx @loopers/audit
 ```
 
 ```
@@ -254,7 +254,7 @@ Before deploying a proxy or configuring Redis, run a read-only X-Ray of your cur
 curl -sSL https://tryloopers.com/audit.sh | sh
 
 # Or run instantly via npx (Node 18+):
-npx @try-loopers/audit
+npx @loopers/audit
 
 # Or run directly if you have loopers installed:
 loopers audit

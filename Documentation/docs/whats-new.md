@@ -21,7 +21,7 @@ Loopers now features a standalone, zero-dependency diagnostic X-Ray command that
 - **Tailored YAML Generator (`--fix`)**: Automatically generates a production-ready `loopers.yaml` pre-configured with all discovered FinOps & security controls.
 - **Copy-Paste Sharing (`--share`)**: Generates a formatted Markdown table with attribution link for GitHub Issues, Reddit, and X.
 - **Zero-Redis In-Process Firewall (`loopers exec`)**: If Redis is not running locally, `loopers exec` automatically boots an in-process memory store with an inline `$10.00` safety lease, allowing developers to test Loopers inline immediately after running `loopers audit` with zero setup.
-- **Zero-Install Runners**: Available via `curl -sSL https://tryloopers.com/audit.sh | sh` and `npx @try-loopers/audit`.
+- **Zero-Install Runners**: Available via `curl -sSL https://tryloopers.com/audit.sh | sh` and `npx @loopers/audit`.
 
 ---
 

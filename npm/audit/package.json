@@ -1,7 +1,11 @@
 {
-  "name": "@try-loopers/audit",
-  "version": "2.23.1",
+  "name": "@loopers/audit",
+  "version": "2.24.0",
   "description": "Zero-config FinOps & Blast-Radius X-Ray for AI agents (OpenClaw, ZeroClaw, OpenCode, MCP)",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "bin": {
     "audit": "./bin/audit.js",
     "loopers-audit": "./bin/audit.js"
@@ -20,4 +24,3 @@
   ],
   "license": "MIT"
 }
-
