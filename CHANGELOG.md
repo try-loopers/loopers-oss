@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.24.0](https://github.com/try-loopers/loopers-oss/compare/v2.23.1...v2.24.0) (2026-10-30)
+
+
+### Features
+
+* add zero-config loopers audit command ([d1f820d](https://github.com/try-loopers/loopers-oss/commit/d1f820d498e79a207435ef3b6cc72863c7adcb1b))
+* add zero-config loopers audit command and embedded inline firewall ([eb2be72](https://github.com/try-loopers/loopers-oss/commit/eb2be720c9f68baa2b118e8cd389af1f8e5a3c00))
+
 ## [2.23.1](https://github.com/try-loopers/loopers-oss/compare/v2.23.0...v2.23.1) (2026-10-28)
 
 
