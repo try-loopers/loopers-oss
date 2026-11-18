@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.25.1](https://github.com/try-loopers/loopers-oss/compare/v2.25.0...v2.25.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **ci:** pin Go version to 1.26.11 across workflows to remediate GO-2026-6859 ([704bfeb](https://github.com/try-loopers/loopers-oss/commit/704bfeb240de20d3b3460ebd35ab8e46906587bd))
+* **ci:** pin Go version to 1.26.11 across workflows to remediate GO-2026-6859 ([782a0e3](https://github.com/try-loopers/loopers-oss/commit/782a0e3c6165b7082baadd066278dbba61d67288))
+
 ## [2.25.0](https://github.com/try-loopers/loopers-oss/compare/v2.24.0...v2.25.0) (2026-10-30)
 
 
