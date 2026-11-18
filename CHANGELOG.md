@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.25.0](https://github.com/try-loopers/loopers-oss/compare/v2.24.0...v2.25.0) (2026-10-30)
+
+
+### Features
+
+* **audit:** add ghost tools detection, DLP leaks scanner, and fix TUI table wrapping ([b36d03a](https://github.com/try-loopers/loopers-oss/commit/b36d03a0ef5a647bd42ba03b5526bc5ec0087401))
+* **audit:** add ghost tools detection, DLP leaks scanner, and fix TUI table wrapping ([bd77488](https://github.com/try-loopers/loopers-oss/commit/bd774881c25bdb141ac4c63a636ad9d3ac15cb73))
+
 ## [2.24.0](https://github.com/try-loopers/loopers-oss/compare/v2.23.1...v2.24.0) (2026-10-30)
 
 
