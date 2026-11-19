@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.25.1](https://github.com/try-loopers/loopers-oss/compare/v2.25.0...v2.25.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **ci:** pin Go version to 1.26.11 across workflows to remediate GO-2026-6859 ([704bfeb](https://github.com/try-loopers/loopers-oss/commit/704bfeb240de20d3b3460ebd35ab8e46906587bd))
+* **ci:** pin Go version to 1.26.11 across workflows to remediate GO-2026-6859 ([782a0e3](https://github.com/try-loopers/loopers-oss/commit/782a0e3c6165b7082baadd066278dbba61d67288))
+
+## [2.25.0](https://github.com/try-loopers/loopers-oss/compare/v2.24.0...v2.25.0) (2026-10-30)
+
+
+### Features
+
+* **audit:** add ghost tools detection, DLP leaks scanner, and fix TUI table wrapping ([b36d03a](https://github.com/try-loopers/loopers-oss/commit/b36d03a0ef5a647bd42ba03b5526bc5ec0087401))
+* **audit:** add ghost tools detection, DLP leaks scanner, and fix TUI table wrapping ([bd77488](https://github.com/try-loopers/loopers-oss/commit/bd774881c25bdb141ac4c63a636ad9d3ac15cb73))
+
 ## [2.24.0](https://github.com/try-loopers/loopers-oss/compare/v2.23.1...v2.24.0) (2026-10-30)
 
 
