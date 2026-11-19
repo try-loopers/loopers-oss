@@ -40,9 +40,9 @@ The appliance operates as a reverse proxy between your autonomous AI agents (run
 ### Port Allocation:
 | Port | Protocol | Component | Purpose |
 | :--- | :--- | :--- | :--- |
-| **`8081`** | HTTP/1.1 & HTTP/2 | **Data Plane Proxy** (`loopers-engine`) | Target for all LLM inference traffic from agent fleets. |
-| **`8080`** | HTTP/JSON | **Control Plane API** (`loopers-api`) | Administration, SAML metadata, and secret vaults. |
-| **`3000`** | HTTP | **Web Console** (`apps/web`) | Dashboard for FinOps, audit receipts, and agent keys. |
+| **`8081`** | HTTP/1.1, HTTP/2 | Data Plane Proxy<br/>`loopers-engine` | Target for all LLM inference traffic from agent fleets. |
+| **`8080`** | HTTP/JSON | Control Plane API<br/>`loopers-api` | Administration, SAML metadata, and secret vaults. |
+| **`3000`** | HTTP | Web Console<br/>`apps/web` | Dashboard for FinOps, audit receipts, and agent keys. |
 | `5432` | TCP (Internal) | PostgreSQL 16 | Relational state store for projects, keys, and receipts. |
 | `6379` | TCP (Internal) | Redis 7 | Token buckets, session prompt caches, and loop breakers. |
 | `4222` | TCP (Internal) | NATS JetStream | Event bus for real-time telemetry and auditing. |

@@ -85,26 +85,38 @@ const sidebars = {
         'security/policy',
       ],
     },
+  ],
+
+  enterpriseSidebar: [
+    {
+      type: 'doc',
+      id: 'enterprise/overview',
+      label: 'Overview & Architecture',
+    },
     {
       type: 'category',
-      label: '🏢 Enterprise In-VPC',
+      label: 'Deployment Guides',
       collapsed: false,
       items: [
-        'enterprise/overview',
-        {
-          type: 'category',
-          label: 'Deployment Guides',
-          collapsed: false,
-          items: [
-            'enterprise/quickstart-docker',
-            'enterprise/kubernetes-helm',
-            'enterprise/airgap-offline',
-          ],
-        },
-        'enterprise/licensing',
-        'enterprise/sso-saml',
-        'enterprise/siem-logging',
+        'enterprise/quickstart-docker',
+        'enterprise/kubernetes-helm',
+        'enterprise/airgap-offline',
       ],
+    },
+    {
+      type: 'doc',
+      id: 'enterprise/licensing',
+      label: 'Licensing & Activation',
+    },
+    {
+      type: 'doc',
+      id: 'enterprise/sso-saml',
+      label: 'SSO & SAML 2.0',
+    },
+    {
+      type: 'doc',
+      id: 'enterprise/siem-logging',
+      label: 'SIEM & Forensic Logging',
     },
   ],
 };

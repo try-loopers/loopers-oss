@@ -59,7 +59,7 @@ cp customer-license.jwt deploy/license.jwt
 
 ### Option B: Web Console Activation
 1. Navigate to `http://<appliance-ip>:3000`.
-2. Go to **Settings $\rightarrow$ License**.
+2. Go to **Settings → License**.
 3. Paste the raw JWT token string into the activation field and click **Activate License**.
 
 ### Option C: Control Plane API
