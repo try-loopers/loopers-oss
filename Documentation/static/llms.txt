@@ -136,6 +136,38 @@ Embedded pre-execution risk calculation engine (`internal/blastradius`) for MCP 
 - [Configuration (loopers.yaml)](/docs/reference/config): Complete config file reference  -  server, redis, proxy, policy, alerting, otel, loop_detection, session, mcp.
 - [HTTP Headers Reference](/docs/reference/headers): All request and response headers used by Loopers (`X-Loopers-Provider-Key`, `X-Loopers-Session-Id`, `X-Loopers-Policy-Block`, etc).
 
+## Enterprise In-VPC Appliance (Commercial Edition)
+
+The Loopers Enterprise Appliance is a self-contained, air-gapped inference firewall and FinOps gateway deployed in customer private clouds (AWS VPC, GCP VPC, Azure VNet, on-prem). It guarantees 100% Zero External SaaS Data Exfiltration, multi-tenant isolation, SAML 2.0 / Okta SSO, and real-time SIEM log streaming.
+
+**Port Mapping:**
+- `8081` - Data Plane Proxy (`loopers-engine`): Target for all agent LLM inference calls (`http://<ip>:8081/v1`).
+- `8080` - Control Plane API (`loopers-api`): Tenant admin, SAML SP metadata, KMS secret vaults (`http://<ip>:8080/v1`).
+- `3000` - Enterprise Web Console (`apps/web`): Fleet monitoring, agent X-ray, FinOps chargeback CSVs.
+
+**In-VPC Quickstart (Agent Recipe):**
+1. Initialize secrets & keys: `./deploy/scripts/init-env.sh` (or `.\deploy\scripts\init-env.ps1`)
+2. Place license token: `cp /path/to/customer-license.jwt deploy/license.jwt`
+3. Launch appliance: `docker compose -f deploy/docker-compose.in-vpc.yml up --build -d`
+4. Self-verify: `./deploy/scripts/smoke-test.sh` (or `.\deploy\scripts\smoke-test.ps1`) -> Expected: `5 PASSED, 0 FAILED`.
+5. Health checks: Query `http://<ip>:8080/healthz` and `http://<ip>:8081/healthz` (both return HTTP 200).
+
+**Agent SDK Drop-in Configuration:**
+Point standard OpenAI SDK to port `8081`:
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://<appliance-ip>:8081/v1", api_key="lc_sk_your_agent_key")
+response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": "Hello"}])
+```
+
+- [Enterprise Overview & Architecture](/docs/enterprise/overview)
+- [Enterprise Docker Deployment](/docs/enterprise/quickstart-docker)
+- [Enterprise Kubernetes Helm](/docs/enterprise/kubernetes-helm)
+- [Enterprise Air-Gapped Offline Setup](/docs/enterprise/airgap-offline)
+- [Enterprise Licensing & Verification](/docs/enterprise/licensing)
+- [Enterprise SSO & SAML 2.0](/docs/enterprise/sso-saml)
+- [Enterprise SIEM & Forensic Logging](/docs/enterprise/siem-logging)
+
 ## Complete Context File
 
 - [llms-full.txt](/llms-full.txt): Single concatenated file containing all documentation above  -  use this when you need complete context about Loopers in one fetch.

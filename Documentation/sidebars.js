@@ -85,6 +85,27 @@ const sidebars = {
         'security/policy',
       ],
     },
+    {
+      type: 'category',
+      label: '🏢 Enterprise In-VPC',
+      collapsed: false,
+      items: [
+        'enterprise/overview',
+        {
+          type: 'category',
+          label: 'Deployment Guides',
+          collapsed: false,
+          items: [
+            'enterprise/quickstart-docker',
+            'enterprise/kubernetes-helm',
+            'enterprise/airgap-offline',
+          ],
+        },
+        'enterprise/licensing',
+        'enterprise/sso-saml',
+        'enterprise/siem-logging',
+      ],
+    },
   ],
 };
 
