@@ -153,6 +153,7 @@ const config = {
           { to: '/docs/faq', label: 'FAQ', position: 'left' },
           { to: '/docs/reference/cli', label: 'CLI Reference', position: 'left' },
           { to: '/docs/architecture', label: 'Architecture', position: 'left' },
+          { to: '/docs/enterprise/overview', label: 'Enterprise In-VPC', position: 'left' },
           {
             href: 'https://github.com/try-loopers/loopers-oss',
             label: 'GitHub',
