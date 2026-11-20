@@ -29,6 +29,9 @@ kubectl create namespace loopers-system
 helm install loopers-firewall ./deploy/helm/loopers-firewall \
   --namespace loopers-system \
   --set license.token="$(cat deploy/license.jwt)"
+
+# 3. Verify pod readiness
+kubectl get pods -n loopers-system -l app.kubernetes.io/name=loopers-firewall
 ```
 
 ---
