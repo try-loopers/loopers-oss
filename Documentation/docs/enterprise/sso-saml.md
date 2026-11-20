@@ -35,16 +35,16 @@ Download this XML file or copy the endpoint URL into your Okta or Microsoft Entr
 
 ### Attribute Statements:
 Ensure your IdP maps the following SAML assertion attributes:
-* `email` $\rightarrow$ `user.email`
-* `firstName` $\rightarrow$ `user.firstName`
-* `lastName` $\rightarrow$ `user.lastName`
-* `groups` $\rightarrow$ `user.groups` (or Active Directory security groups)
+* `email` → `user.email`
+* `firstName` → `user.firstName`
+* `lastName` → `user.lastName`
+* `groups` → `user.groups` (or Active Directory security groups)
 
 ---
 
 ## 3. Automatic RBAC Role Mapping
 
-Configure AD/Okta groups to map directly to Loopers roles in the Web Console under **Settings $\rightarrow$ SSO**:
+Configure AD/Okta groups to map directly to Loopers roles in the Web Console under **Settings → SSO**:
 
 | Corporate Directory Group | Loopers Appliance Role | Granted Permissions |
 | :--- | :--- | :--- |

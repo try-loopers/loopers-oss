@@ -35,7 +35,7 @@ When your corporate SIEM endpoint is temporarily unreachable (e.g., during netwo
 ## 3. Configuring SIEM via Web Console
 
 1. Navigate to `http://<appliance-ip>:3000`.
-2. Open **Settings $\rightarrow$ SIEM & Compliance**.
+2. Open **Settings → SIEM & Compliance**.
 3. Select your platform (e.g. `Splunk HEC` or `Syslog TLS`).
 4. Enter your endpoint URL, authentication token, and format preference (`CEF` or `JSON`).
 5. Click **Test SIEM Connection** to send an active probe and verify delivery.
