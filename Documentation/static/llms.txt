@@ -149,11 +149,13 @@ The Loopers Enterprise Appliance is a self-contained, air-gapped inference firew
 1. Initialize secrets & keys: `./deploy/scripts/init-env.sh` (or `.\deploy\scripts\init-env.ps1`)
 2. Place license token: `cp /path/to/customer-license.jwt deploy/license.jwt`
 3. Launch appliance: `docker compose -f deploy/docker-compose.in-vpc.yml up --build -d`
-4. Self-verify: `./deploy/scripts/smoke-test.sh` (or `.\deploy\scripts\smoke-test.ps1`) -> Expected: `5 PASSED, 0 FAILED`.
-5. Health checks: Query `http://<ip>:8080/healthz` and `http://<ip>:8081/healthz` (both return HTTP 200).
+4. Self-verify: Query readiness probes `curl -s -f http://<ip>:8080/readyz` and `curl -s -f http://<ip>:8081/readyz`
+5. Readiness checks: Query `http://<ip>:8080/readyz` (PostgreSQL + Redis verified) and `http://<ip>:8081/readyz` (Engine proxy active).
 
 **Agent SDK Drop-in Configuration:**
-Point standard OpenAI SDK to port `8081`:
+- OpenAI SDK: `base_url="http://<appliance-ip>:8081/v1"`, `api_key="lc_sk_..."`
+- Anthropic SDK: `base_url="http://<appliance-ip>:8081/lc_sk_.../anthropic"`, `api_key="vault-managed"`
+- Multi-Provider Path: `http://<appliance-ip>:8081/lc_sk_.../<provider>/v1` (supports `deepseek`, `openrouter`, `vllm`, `ollama`)
 ```python
 from openai import OpenAI
 client = OpenAI(base_url="http://<appliance-ip>:8081/v1", api_key="lc_sk_your_agent_key")
