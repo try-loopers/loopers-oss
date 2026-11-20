@@ -31,18 +31,18 @@ powershell -ExecutionPolicy Bypass -File .\deploy\scripts\init-env.ps1
 - Auto-generates cryptographically random internal HMAC secrets, PostgreSQL credentials, and administrator passwords.
 - Creates `deploy/vault.key` (256-bit AES master encryption key).
 - Generates `deploy/jwt.key` (2048-bit RSA private signing key).
-- Pre-creates a safe `deploy/license.jwt` placeholder file.
 
 ---
 
-### Step 2: Place Your Enterprise License
+### Step 2: Place Your Enterprise License Token (Mandatory)
 Copy the Ed25519-signed license token provided by your Loopers account team:
 
 ```bash
 cp /path/to/customer-license.jwt deploy/license.jwt
 ```
 
-*(If you are deploying an initial evaluation without a license file, the stack boots into evaluation mode; you can also paste the license token later via the Web Console).*
+> [!IMPORTANT]
+> The engine terminates with `[License] FATAL` if `deploy/license.jwt` is missing or empty. A valid vendor-issued license token is required before starting the containers.
 
 ---
 
@@ -60,8 +60,16 @@ docker compose -f deploy/docker-compose.in-vpc.yml ps
 
 ---
 
-### Step 4: Run the Automated Smoke Test
-Validate all 5 appliance security and architecture gates:
+### Step 4: Verify Appliance Readiness & Smoke Test
+Validate container readiness probes:
+
+```bash
+curl -s -f http://localhost:8080/readyz
+curl -s -f http://localhost:8081/readyz
+curl -s -f http://localhost:3000/api/health
+```
+
+To run the full internal unit and static verification suite (requires Go 1.26+ on host):
 
 ```bash
 # On Linux / macOS:
