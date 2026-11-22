@@ -15,8 +15,18 @@ It builds all microservices locally from the included multi-stage Dockerfiles, r
 
 ## 4-Step Quickstart
 
+### Pre-requisite: Verify Release Integrity & Unpack
+```bash
+# Verify cryptographic checksum
+sha256sum -c SHA256SUMS.txt
+
+# Unpack and enter directory
+unzip loopers-cloud-enterprise-*.zip
+cd loopers-cloud-enterprise-*
+```
+
 ### Step 1: Initialize Cryptographic Secrets
-From the root of your unzipped `loopers-cloud-enterprise-rc1` directory:
+From the root of your unzipped appliance directory:
 
 ```bash
 # On Linux / macOS:
