@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.25.2](https://github.com/try-loopers/loopers-oss/compare/v2.25.1...v2.25.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **docs:** resolve LaTeX arrow rendering and prevent table midline line breaks ([9a74a58](https://github.com/try-loopers/loopers-oss/commit/9a74a5854b22b214dd9ac06d636ca18e60b1995a))
+* **docs:** resolve LaTeX arrow rendering and prevent table midline line breaks ([6395a25](https://github.com/try-loopers/loopers-oss/commit/6395a25f4fae1ed655af09116aecbbad8c67fe73))
+
 ## [2.25.1](https://github.com/try-loopers/loopers-oss/compare/v2.25.0...v2.25.1) (2026-11-18)
 
 
