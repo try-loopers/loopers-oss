@@ -64,3 +64,17 @@ Benchmarks conducted with synthetic multi-agent streaming workloads (~25 tokens/
 * **1,000 – 1,200 Streams per Pod (Autoscaling Inflection Point):** Worker saturation begins; connection queue latency increases.
 * **1,500+ Streams per Pod (Congested):** P95 latency exceeds 6.0s; horizontal pod autoscaling (HPA) required.
 * **3,500 Streams per Pod (Single-Pod Hardware Ceiling):** 100% request completion maintained with only 250 MB RSS memory.
+
+---
+
+## Deployment Paths & Next Steps
+
+Select the deployment guide that matches your infrastructure:
+
+| Deployment Path | Best For | Guide |
+| :--- | :--- | :--- |
+| **Docker Compose (In-VPC)** | Single VM, Evaluation, AWS EC2, GCP VM, On-Premises | [**5-Step Quickstart Guide &rarr;**](./quickstart-docker.md) |
+| **Kubernetes (Helm)** | Production EKS, AKS, GKE, Multi-replica Clusters | [**Kubernetes Helm Guide &rarr;**](./kubernetes-helm.md) |
+| **Strict Air-Gapped / Offline** | Defense, Banking, Zero-Egress Isolated Clouds | [**Air-Gapped Deployment Guide &rarr;**](./airgap-offline.md) |
+| **Autonomous AI Assistants** | Headless deployment via Cursor, Claude Code, Copilot | Refer to `AGENTS.md` in the release archive |
+
