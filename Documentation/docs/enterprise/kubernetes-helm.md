@@ -25,7 +25,12 @@ From the root of the extracted package:
 # 1. Create a dedicated namespace
 kubectl create namespace loopers-system
 
-# 2. Deploy the stack using the local chart
+# Option A: Deploy directly from GHCR OCI Registry
+helm install loopers-firewall oci://ghcr.io/cursed-me/charts/loopers-firewall \
+  --namespace loopers-system \
+  --set license.token="$(cat deploy/license.jwt)"
+
+# Option B: Deploy using local extracted chart
 helm install loopers-firewall ./deploy/helm/loopers-firewall \
   --namespace loopers-system \
   --set license.token="$(cat deploy/license.jwt)"

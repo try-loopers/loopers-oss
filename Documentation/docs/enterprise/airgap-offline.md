@@ -36,9 +36,10 @@ A single compressed archive at `deploy/loopers-appliance-images.tar.gz` containi
 ## 2. Transfer to Air-Gapped Environment
 
 Transfer the following artifacts across your secure data diode, bastion, or physical media:
-1. `loopers-cloud-enterprise-rc1.zip` (Source code, compose manifests, scripts)
-2. `deploy/loopers-appliance-images.tar.gz` (Pre-built container bundle)
-3. `license.jwt` (Your vendor-issued enterprise license token)
+1. `loopers-cloud-enterprise-*.zip` (Source code, compose manifests, scripts)
+2. `SHA256SUMS.txt` (Cryptographic verification checksums)
+3. `deploy/loopers-appliance-images.tar.gz` (Pre-built container bundle)
+4. `license.jwt` (Your vendor-issued enterprise license token)
 
 ---
 
@@ -47,24 +48,32 @@ Transfer the following artifacts across your secure data diode, bastion, or phys
 Inside your isolated VPC host:
 
 ```bash
-# 1. Unpack the application package
-unzip loopers-cloud-enterprise-rc1.zip
-cd loopers-cloud-packaging
+# 1. Verify archive integrity
+sha256sum -c SHA256SUMS.txt
 
-# 2. Import the offline container image bundle
+# 2. Unpack the application package
+unzip loopers-cloud-enterprise-*.zip
+cd loopers-cloud-enterprise-*
+
+# 3. Import the offline container image bundle
 docker load -i deploy/loopers-appliance-images.tar.gz
 
-# 3. Initialize cryptographic secrets
+# 4. Initialize cryptographic secrets
 ./deploy/scripts/init-env.sh
 
-# 4. Place your enterprise license
+# 5. Place your enterprise license token (MANDATORY)
 cp /path/to/license.jwt deploy/license.jwt
 
-# 5. Launch the appliance (using imported images)
+# 6. Launch the appliance (using imported images)
 docker compose -f deploy/docker-compose.in-vpc.yml up -d
 
-# 6. Verify zero external dependencies
-./deploy/scripts/smoke-test.sh
+# 7. Verify appliance readiness (zero external dependencies)
+docker compose -f deploy/docker-compose.in-vpc.yml ps
+curl -s -f http://localhost:8080/readyz
+curl -s -f http://localhost:8081/readyz
+curl -s -f http://localhost:3000/api/health
 ```
+
+*(Optional Developer Suite: run `./deploy/scripts/smoke-test.sh` if Go 1.26+ is installed on the host)*
 
 The appliance will boot with 100% of telemetry, semantic caching, and threat inspection running locally against internal PostgreSQL, Redis, and NATS.
